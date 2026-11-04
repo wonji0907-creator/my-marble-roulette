@@ -59,7 +59,14 @@ function once(fn: () => void): () => void {
 
     let ad = null;
     try {
-      ad = adService.pickForRound();
+      ad = adService.pickForRound() ?? {
+        id: 'marble-dash-house-preroll',
+        slots: ['preroll'],
+        advertiser: 'Marble Dash',
+        tagline: '즐거운 룰렛을 시작합니다',
+        house: true,
+        creatives: {},
+      };
       roulette.setAd(ad);
       if (ad) adService.trackImpression();
       preloadNextAd();
