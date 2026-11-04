@@ -60,15 +60,33 @@ function addSample(m: Metrics, s: Snapshot, prev?: Snapshot) {
   m.ySum += s.y;
 }
 
+function addRaceSummary(group: Metrics, race: Metrics) {
+  if (!race.samples) return;
+  const n = race.samples;
+  group.samples++;
+  group.speedSum += race.speedSum / n;
+  group.minSpeed = Math.min(group.minSpeed, race.minSpeed);
+  group.slowSamples += race.slowSamples / n;
+  group.contactSamples += race.contactSamples / n;
+  group.contactStarts += race.contactStarts;
+  group.sharpDrops += race.sharpDrops;
+  group.reversals += race.reversals;
+  group.distanceSum += race.distanceSum / n;
+  group.xSum += race.xSum / n;
+  group.ySum += race.ySum / n;
+}
+
 function report(label: string, m: Metrics) {
   const n = Math.max(1, m.samples);
   return {
-    group: label, samples: m.samples,
+    group: label, races: m.samples,
     meanSpeed: +(m.speedSum / n).toFixed(3),
     minObservedSpeed: Number.isFinite(m.minSpeed) ? +m.minSpeed.toFixed(3) : null,
     slowTimePct: +(m.slowSamples / n * 100).toFixed(2),
     contactTimePct: +(m.contactSamples / n * 100).toFixed(2),
-    contactStarts: m.contactStarts, sharpSpeedDrops: m.sharpDrops, directionReversals: m.reversals,
+    contactStartsPerRace: +(m.contactStarts / n).toFixed(2),
+    sharpSpeedDropsPerRace: +(m.sharpDrops / n).toFixed(2),
+    directionReversalsPerRace: +(m.reversals / n).toFixed(2),
     meanProgressDistance: +(m.distanceSum / n).toFixed(3),
     meanX: +(m.xSum / n).toFixed(3), meanY: +(m.ySum / n).toFixed(3),
   };
@@ -151,7 +169,7 @@ async function main() {
         ? (r.winner === r.target ? groups.targetWins : groups.targetLosses)
         : (id === r.winner ? groups.otherWinners : groups.otherMarbles);
       const source = r.metrics[id];
-      for (const key of Object.keys(bucket) as (keyof Metrics)[]) bucket[key] += source[key];
+      addRaceSummary(bucket, source);
     }
   }
   const result = {
@@ -164,7 +182,7 @@ async function main() {
       report('other marble wins', groups.otherWinners),
       report('other marbles lose', groups.otherMarbles),
     ],
-    note: 'Read-only sampled telemetry. Contact is sampled every 0.05s, so brief contacts may be missed; this is not a causal intervention test.',
+    note: 'Read-only telemetry. Each race contributes one equally weighted per-marble summary, reducing bias from winners finishing sooner. Contact is sampled every 0.05s, so brief contacts may be missed; this is not a causal intervention test.'
   };
   console.log(JSON.stringify(result, null, 2));
 }
