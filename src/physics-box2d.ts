@@ -137,6 +137,15 @@ export class Box2dPhysics implements IPhysics {
     }
   }
 
+  /** 실험용: 현재 진행 방향을 유지한 채 속도 크기만 미세 조정한다. */
+  adjustMarbleSpeed(id: number, factor: number): void {
+    const marble = this.marbleMap[id];
+    if (!marble) return;
+    const velocity = marble.GetLinearVelocity();
+    velocity.op_mul(factor);
+    marble.SetLinearVelocity(velocity);
+  }
+
   getMarblePosition(id: number): { x: number; y: number; angle: number } {
     const marble = this.marbleMap[id];
     if (marble) {
