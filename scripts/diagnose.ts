@@ -198,7 +198,7 @@ async function main() {
       report('other marble wins', groups.otherWinners),
       report('other marbles lose', groups.otherMarbles),
     ],
-    note: 'Read-only telemetry. Progress segments normalize remaining distance against each marble's actual starting distance. Each race contributes one equally weighted per-marble summary. Contact is sampled every 0.05s, so brief contacts may be missed. Finish detection remains sampled and approximate; this is not a causal intervention test.'
+    note: "Read-only telemetry. Progress segments normalize remaining distance against each marble's actual starting distance. Each race contributes one equally weighted per-marble summary. Contact is sampled every 0.05s, so brief contacts may be missed. Finish detection remains sampled and approximate; this is not a causal intervention test."
   };
   console.log(JSON.stringify(result, null, 2));
 }
