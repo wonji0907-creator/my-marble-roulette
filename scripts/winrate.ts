@@ -100,8 +100,7 @@ async function race(seed: number, n: number, mapIndex: number, policy: Policy): 
 
     const targetRank = rankedNow.findIndex((m) => m.id === target) + 1;
     const rankBehind = targetRank >= 2;
-    const midCourseReached = targetDistance <= progress.maxDist * 0.6;
-    const shouldTrigger = policy.mode !== 'none' && rankBehind && midCourseReached;
+    const shouldTrigger = policy.mode !== 'none' && rankBehind;
 
     // 목표 구슬이 뒤처졌을 때만 속도 크기를 미세 조정한다.
     // 진행 방향(속도 벡터)은 유지하고, 실제 결승 통과 순서는 물리 시뮬레이션에 맡긴다.
@@ -143,7 +142,7 @@ async function main() {
   const n = Math.max(2, Number(process.argv[3] ?? 5));
   const mapIndex = 0; // Wheel of fortune 전용 실험
   const policies: Policy[] = [
-    { label: '현재 적용 보정 (중반 이후 ×1.15 / 0.35초 / 최대 24회)', mode: 'target-speed', gap: 0.25, targetFactor: 1.15, rivalFactor: 1, cooldown: 0.35, maxAssists: 24, startImpulse: 0 },
+    { label: '현재 적용 보정 (출발 직후부터 ×1.15 / 0.35초 / 최대 24회)', mode: 'target-speed', gap: 0.25, targetFactor: 1.15, rivalFactor: 1, cooldown: 0.35, maxAssists: 24, startImpulse: 0 },
   ];
 
   console.log(`맵: ${stages[mapIndex].title} / 참가: ${n} / 조건별 반복: ${trials}`);
