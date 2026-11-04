@@ -36,7 +36,7 @@ class NodePhysics extends Box2dPhysics {
 }
 
 type Policy = { label: string; gap: number; impulse: number };
-type Outcome = { winner: number | null; assists: number; seconds: number };
+type Outcome = { winner: number | null; target: number; targetWon: boolean; assists: number; seconds: number };
 
 async function race(seed: number, n: number, mapIndex: number, policy: Policy): Promise<Outcome> {
   seedRandom(seed);
@@ -104,7 +104,7 @@ async function race(seed: number, n: number, mapIndex: number, policy: Policy): 
     removals.sort((a, b) => a.time - b.time);
   }
 
-  return { winner, assists, seconds: elapsed };
+  return { winner, target, targetWon: winner === target, assists, seconds: elapsed };
 }
 
 async function main() {
