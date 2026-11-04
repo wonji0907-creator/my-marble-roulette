@@ -106,8 +106,10 @@ function drawPreroll(ctx: CanvasRenderingContext2D, w: number, h: number, ad: Ro
 
   const logo = ready(images.preroll) ? images.preroll : undefined;
 
-  const parts = [provideSize, sponsorSize, logo ? logoSize : 0, labelSize];
-  const total = parts.reduce((a, b) => a + b, 0) + gap * (parts.filter((p) => p > 0).length - 1);
+  // 서버 소재가 없을 때도 원작처럼 중앙에 정사각 이미지형 광고를 표시한다.
+  const cardSize = logo ? logoSize : Math.min(w * 0.34, h * 0.38, 300);
+  const parts = [provideSize, sponsorSize, cardSize, labelSize];
+  const total = parts.reduce((a, b) => a + b, 0) + gap * (parts.length - 1);
 
   let y = (h - total) / 2;
   const cx = w / 2;
@@ -128,12 +130,59 @@ function drawPreroll(ctx: CanvasRenderingContext2D, w: number, h: number, ad: Ro
 
   if (logo) {
     ctx.drawImage(logo, cx - logoSize / 2, y, logoSize, logoSize);
-    y += logoSize + gap;
+  } else {
+    const x = cx - cardSize / 2;
+    const top = y;
+    const r = cardSize * 0.09;
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.35)';
+    ctx.shadowBlur = cardSize * 0.08;
+    const bg = ctx.createLinearGradient(x, top, x + cardSize, top + cardSize);
+    bg.addColorStop(0, '#172554');
+    bg.addColorStop(0.55, '#2563eb');
+    bg.addColorStop(1, '#7c3aed');
+    ctx.fillStyle = bg;
+    roundedRect(ctx, x, top, cardSize, cardSize, r);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    const mx = cx, my = top + cardSize * 0.39, mr = cardSize * 0.22;
+    const marble = ctx.createRadialGradient(mx - mr * 0.35, my - mr * 0.4, mr * 0.08, mx, my, mr);
+    marble.addColorStop(0, '#ffffff');
+    marble.addColorStop(0.35, '#bfdbfe');
+    marble.addColorStop(0.72, '#60a5fa');
+    marble.addColorStop(1, '#1e40af');
+    ctx.beginPath();
+    ctx.arc(mx, my, mr, 0, Math.PI * 2);
+    ctx.fillStyle = marble;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+    ctx.lineWidth = Math.max(1, cardSize * 0.008);
+    ctx.stroke();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '800 ' + (cardSize * 0.105) + "px " + SANS;
+    ctx.fillText('MARBLE DASH', cx, top + cardSize * 0.76);
+    ctx.font = '500 ' + (cardSize * 0.045) + "px " + SANS;
+    ctx.fillStyle = 'rgba(255,255,255,0.86)';
+    ctx.fillText('LET THE GAME BEGIN', cx, top + cardSize * 0.86);
+    ctx.restore();
   }
+  y += cardSize + gap;
 
   ctx.font = `${labelSize}px ${SANS}`;
   ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
   ctx.fillText('광고', cx, y + labelSize / 2);
+}
+
+function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
 }
 
 function drawResult(
