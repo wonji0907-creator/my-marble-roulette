@@ -16,6 +16,9 @@ export interface IPhysics {
 
   removeMarble(id: number): void;
 
+  /** 테스트 모드에서 지정하지 않은 구슬을 결승선 앞에 대기시킨다. */
+  holdMarble(id: number): void;
+
   getMarblePosition(id: number): { x: number; y: number; angle: number };
 
   getEntities(): MapEntityState[];
