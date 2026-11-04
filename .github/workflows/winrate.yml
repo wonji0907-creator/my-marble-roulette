@@ -7,6 +7,7 @@ on:
       - '.github/workflows/winrate.yml'
       - 'src/physics-box2d.ts'
       - 'src/progressMap.ts'
+      - 'src/roulette.ts'
 jobs:
   winrate:
     runs-on: ubuntu-latest
