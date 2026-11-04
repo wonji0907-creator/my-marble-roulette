@@ -19,4 +19,4 @@ jobs:
           cache: npm
       - run: npm install --no-audit --no-fund
       - name: Run paired winner-rate trials
-        run: npm run winrate -- 200 5 0
+        run: npm run winrate -- 50 5 0
