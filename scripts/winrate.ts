@@ -1,6 +1,6 @@
 /**
  * 지정 구슬 실제 우승률 실험기.
- * npm run winrate -- [trials=100] [marbles=5] [mapIndex=0]
+ * npm run winrate -- [trials=100] [marbles=5]
  * 모든 정책은 동일한 시드 목록으로 비교한다.
  */
 import * as fs from 'node:fs';
@@ -11,8 +11,6 @@ import { Box2dPhysics } from '../src/physics-box2d';
 
 const STEP = 0.01;
 const MAX_SECONDS = 240;
-const COOLDOWN = 0.3;
-const MAX_ASSISTS = 24;
 
 function seedRandom(seed: number) {
   let a = seed >>> 0;
@@ -35,7 +33,7 @@ class NodePhysics extends Box2dPhysics {
   }
 }
 
-type Policy = { label: string; gap: number; impulse: number };
+type Policy = { label: string; gap: number; impulse: number; cooldown: number; maxAssists: number };
 type Outcome = { winner: number | null; targetWon: boolean; assists: number; seconds: number };
 
 async function race(seed: number, n: number, mapIndex: number, policy: Policy): Promise<Outcome> {
@@ -87,8 +85,8 @@ async function race(seed: number, n: number, mapIndex: number, policy: Policy): 
       Number.isFinite(targetDistance) &&
       Number.isFinite(leaderDistance) &&
       targetDistance > leaderDistance + policy.gap &&
-      elapsed - lastAssist >= COOLDOWN &&
-      assists < MAX_ASSISTS
+      elapsed - lastAssist >= policy.cooldown &&
+      assists < policy.maxAssists
     ) {
       physics.boostMarble(target, policy.impulse);
       lastAssist = elapsed;
@@ -114,15 +112,15 @@ async function main() {
   const n = Math.max(2, Number(process.argv[3] ?? 5));
   const mapIndex = 0; // Wheel of fortune 전용 실험
   const policies: Policy[] = [
-    { label: '무보정', gap: 0, impulse: 0 },
-    { label: '미세·근접', gap: 0.5, impulse: 0.05 },
-    { label: '약한·근접', gap: 0.5, impulse: 0.1 },
-    { label: '중간·근접', gap: 0.5, impulse: 0.2 },
-    { label: '약한·중간거리', gap: 1.5, impulse: 0.1 },
-    { label: '중간·중간거리', gap: 1.5, impulse: 0.2 },
-    { label: '강한·중간거리', gap: 1.5, impulse: 0.35 },
-    { label: '약한·먼거리', gap: 3, impulse: 0.1 },
-    { label: '중간·먼거리', gap: 3, impulse: 0.2 },
+    { label: '무보정 기준', gap: 0, impulse: 0, cooldown: 0, maxAssists: 0 },
+    { label: '기존 최상위(다빈도)', gap: 1.5, impulse: 0.2, cooldown: 0.3, maxAssists: 24 },
+    { label: '약한 충격·최대 8회', gap: 1.5, impulse: 0.1, cooldown: 0.8, maxAssists: 8 },
+    { label: '중간 충격·최대 4회', gap: 1.5, impulse: 0.2, cooldown: 0.8, maxAssists: 4 },
+    { label: '중간 충격·최대 8회', gap: 1.5, impulse: 0.2, cooldown: 0.8, maxAssists: 8 },
+    { label: '중간 충격·최대 12회', gap: 1.5, impulse: 0.2, cooldown: 0.8, maxAssists: 12 },
+    { label: '중간 충격·긴 간격', gap: 1.5, impulse: 0.2, cooldown: 1.5, maxAssists: 8 },
+    { label: '조금 늦게 개입', gap: 2.0, impulse: 0.2, cooldown: 0.8, maxAssists: 8 },
+    { label: '일찍 개입·소량', gap: 1.0, impulse: 0.1, cooldown: 0.8, maxAssists: 8 },
   ];
 
   console.log(`맵: ${stages[mapIndex].title} / 참가: ${n} / 조건별 반복: ${trials}`);
