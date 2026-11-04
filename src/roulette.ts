@@ -268,7 +268,9 @@ export class Roulette extends EventTarget {
         const progress = ProgressMap.for(this._stage);
         const targetDistance = progress.distanceAt(target.x, target.y);
         const leaderDistance = progress.distanceAt(leader.x, leader.y);
-        if (targetDistance > leaderDistance + 0.25 && this._testChaseElapsed - this._testChaseLastAssist >= 0.5) {
+        // 초반에는 자연스러운 경주를 유지하고, 전체 경로의 약 40%를 지난 중반부터 뒤처질 때 추격 보정한다.
+        const midCourseReached = targetDistance <= progress.maxDist * 0.6;
+        if (midCourseReached && targetDistance > leaderDistance + 0.25 && this._testChaseElapsed - this._testChaseLastAssist >= 0.5) {
           this.physics.adjustMarbleSpeed(target.id, 1.08);
           this._testChaseLastAssist = this._testChaseElapsed;
           this._testChaseAssists++;
@@ -509,13 +511,11 @@ export class Roulette extends EventTarget {
     this.physics.start();
     this._marbles.forEach((marble) => (marble.isActive = true));
 
-    // 테스트 모드에서는 지정 구슬에 출발 순간 아주 약한 전진 충격량만 준다.
-    // 경주 중 속도나 충돌을 강제로 덮어쓰지 않으므로 모든 구슬이 정상적으로 완주한다.
+    // 출발 순간의 추가 가속은 제거한다. 지정 구슬도 다른 구슬과 같은 조건에서 출발한다.
     if (this._mapId === 'builtin:0' && this._testWinnerMarbleId !== null) {
       this._testChaseElapsed = 0;
       this._testChaseLastAssist = -Infinity;
       this._testChaseAssists = 0;
-      this.physics.boostMarble(this._testWinnerMarbleId, 0.8);
     }
   }
 
