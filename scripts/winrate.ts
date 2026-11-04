@@ -33,7 +33,7 @@ class NodePhysics extends Box2dPhysics {
   }
 }
 
-type Policy = { label: string; mode: 'none' | 'slowmo' | 'rank' | 'both'; gap: number; impulse: number; cooldown: number; maxAssists: number };
+type Policy = { label: string; mode: 'none' | 'target-speed' | 'rival-slow' | 'combined'; gap: number; targetFactor: number; rivalFactor: number; cooldown: number; maxAssists: number };
 type Outcome = { winner: number | null; targetWon: boolean; assists: number; seconds: number };
 
 async function race(seed: number, n: number, mapIndex: number, policy: Policy): Promise<Outcome> {
@@ -95,15 +95,11 @@ async function race(seed: number, n: number, mapIndex: number, policy: Policy): 
 
     const targetRank = rankedNow.findIndex((m) => m.id === target) + 1;
     const rankBehind = targetRank >= 2;
-    const shouldTrigger =
-      policy.mode === 'slowmo' ? slowMotion :
-      policy.mode === 'rank' ? rankBehind :
-      policy.mode === 'both' ? slowMotion && rankBehind : false;
+    const shouldTrigger = policy.mode !== 'none' && rankBehind;
 
-    // A: 슬로우모션 구간, B: 목표 구슬 2위 이하, C: 두 조건 동시.
-    // 목표 구슬에만 작은 전진 충격을 주며 다른 구슬의 속도/결과는 조작하지 않는다.
+    // 목표 구슬이 뒤처졌을 때만 속도 크기를 미세 조정한다.
+    // 진행 방향(속도 벡터)은 유지하고, 실제 결승 통과 순서는 물리 시뮬레이션에 맡긴다.
     if (
-      policy.impulse > 0 &&
       alive.has(target) &&
       shouldTrigger &&
       Number.isFinite(targetDistance) &&
@@ -112,7 +108,14 @@ async function race(seed: number, n: number, mapIndex: number, policy: Policy): 
       elapsed - lastAssist >= policy.cooldown &&
       assists < policy.maxAssists
     ) {
-      physics.boostMarble(target, policy.impulse);
+      if (policy.mode === 'target-speed' || policy.mode === 'combined') {
+        physics.adjustMarbleSpeed(target, policy.targetFactor);
+      }
+      if (policy.mode === 'rival-slow' || policy.mode === 'combined') {
+        for (const id of alive) {
+          if (id !== target) physics.adjustMarbleSpeed(id, policy.rivalFactor);
+        }
+      }
       lastAssist = elapsed;
       assists++;
     }
@@ -136,10 +139,10 @@ async function main() {
   const n = Math.max(2, Number(process.argv[3] ?? 5));
   const mapIndex = 0; // Wheel of fortune 전용 실험
   const policies: Policy[] = [
-    { label: '무보정 기준', mode: 'none', gap: 0, impulse: 0, cooldown: 0, maxAssists: 0 },
-    { label: 'A 슬로우모션 구간', mode: 'slowmo', gap: 1.0, impulse: 0.16, cooldown: 0.8, maxAssists: 8 },
-    { label: 'B 2위 이하 스킬', mode: 'rank', gap: 1.0, impulse: 0.16, cooldown: 0.8, maxAssists: 8 },
-    { label: 'C 두 조건 결합', mode: 'both', gap: 1.0, impulse: 0.16, cooldown: 0.8, maxAssists: 8 },
+    { label: '무보정 기준', mode: 'none', gap: 0, targetFactor: 1, rivalFactor: 1, cooldown: 0, maxAssists: 0 },
+    { label: 'A 목표 구슬 +1.5%', mode: 'target-speed', gap: 1.0, targetFactor: 1.015, rivalFactor: 1, cooldown: 0.5, maxAssists: 16 },
+    { label: 'B 경쟁 구슬 -1%', mode: 'rival-slow', gap: 1.0, targetFactor: 1, rivalFactor: 0.99, cooldown: 0.5, maxAssists: 16 },
+    { label: 'C 두 방식 결합', mode: 'combined', gap: 1.0, targetFactor: 1.015, rivalFactor: 0.99, cooldown: 0.5, maxAssists: 16 },
   ];
 
   console.log(`맵: ${stages[mapIndex].title} / 참가: ${n} / 조건별 반복: ${trials}`);
