@@ -59,14 +59,8 @@ function once(fn: () => void): () => void {
 
     let ad = null;
     try {
-      ad = adService.pickForRound() ?? {
-        id: 'marble-dash-house-preroll',
-        slots: ['preroll'],
-        advertiser: 'Marble Dash',
-        tagline: '즐거운 룰렛을 시작합니다',
-        house: true,
-        creatives: {},
-      };
+      // 실제 광고 서버에서 선택된 소재만 노출한다. 광고가 없으면 자체 대체 광고를 만들지 않는다.
+      ad = adService.pickForRound();
       roulette.setAd(ad);
       if (ad) adService.trackImpression();
       preloadNextAd();
