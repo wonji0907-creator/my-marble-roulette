@@ -34,7 +34,7 @@ class NodePhysics extends Box2dPhysics {
 }
 
 type Policy = { label: string; mode: 'none' | 'target-speed' | 'leader-slow' | 'combined'; gap: number; targetFactor: number; rivalFactor: number; cooldown: number; maxAssists: number; startImpulse: number };
-type Outcome = { winner: number | null; targetWon: boolean; assists: number; seconds: number };
+type Outcome = { topTwo: boolean; assists: number; seconds: number };
 
 async function race(seed: number, n: number, mapIndex: number, policy: Policy): Promise<Outcome> {
   seedRandom(seed);
@@ -60,7 +60,7 @@ async function race(seed: number, n: number, mapIndex: number, policy: Policy): 
   let elapsed = 0;
   let lastAssist = -policy.cooldown;
   let assists = 0;
-  let winner: number | null = null;
+  const finishOrder: number[] = [];
   let previousTargetSpeed = 0;
   let previousTargetVx = 0;
   let previousTargetVy = 0;
@@ -100,7 +100,8 @@ async function race(seed: number, n: number, mapIndex: number, policy: Policy): 
 
     const targetRank = rankedNow.findIndex((m) => m.id === target) + 1;
     const rankBehind = targetRank >= 2;
-    const shouldTrigger = policy.mode !== 'none' && rankBehind;
+    const midCourseReached = targetDistance <= progress.maxDist * 0.6;
+    const shouldTrigger = policy.mode !== 'none' && rankBehind && midCourseReached;
 
     // 목표 구슬이 뒤처졌을 때만 속도 크기를 미세 조정한다.
     // 진행 방향(속도 벡터)은 유지하고, 실제 결승 통과 순서는 물리 시뮬레이션에 맡긴다.
@@ -126,7 +127,7 @@ async function race(seed: number, n: number, mapIndex: number, policy: Policy): 
     for (const id of [...alive]) {
       const p = physics.getMarblePosition(id);
       if (p.y > stage.goalY) {
-        if (winner === null) winner = id;
+        finishOrder.push(id);
         alive.delete(id);
         removals.push({ id, time: elapsed + 0.5 });
       }
@@ -134,7 +135,7 @@ async function race(seed: number, n: number, mapIndex: number, policy: Policy): 
     removals.sort((a, b) => a.time - b.time);
   }
 
-  return { winner, targetWon: winner === target, assists, seconds: elapsed };
+  return { topTwo: finishOrder.slice(0, 2).includes(target), assists, seconds: elapsed };
 }
 
 async function main() {
@@ -142,34 +143,25 @@ async function main() {
   const n = Math.max(2, Number(process.argv[3] ?? 5));
   const mapIndex = 0; // Wheel of fortune 전용 실험
   const policies: Policy[] = [
-    { label: '기준선', mode: 'none', gap: 0, targetFactor: 1, rivalFactor: 1, cooldown: 0, maxAssists: 0, startImpulse: 0 },
-    { label: 'A 강한 출발 +0.8', mode: 'none', gap: 0, targetFactor: 1, rivalFactor: 1, cooldown: 0, maxAssists: 0, startImpulse: 0.8 },
-    { label: 'B 매우 강한 출발 +2.0', mode: 'none', gap: 0, targetFactor: 1, rivalFactor: 1, cooldown: 0, maxAssists: 0, startImpulse: 2.0 },
-    { label: 'C 강한 추격 가속 ×1.06', mode: 'target-speed', gap: 0.25, targetFactor: 1.06, rivalFactor: 1, cooldown: 0.5, maxAssists: 12, startImpulse: 0 },
-    { label: 'D 초강한 추격 가속 ×1.12', mode: 'target-speed', gap: 0.25, targetFactor: 1.12, rivalFactor: 1, cooldown: 0.5, maxAssists: 12, startImpulse: 0 },
-    { label: 'E 선두 감속 ×0.90', mode: 'leader-slow', gap: 0.25, targetFactor: 1, rivalFactor: 0.90, cooldown: 0.5, maxAssists: 12, startImpulse: 0 },
-    { label: 'F 초강한 선두 감속 ×0.80', mode: 'leader-slow', gap: 0.25, targetFactor: 1, rivalFactor: 0.80, cooldown: 0.5, maxAssists: 12, startImpulse: 0 },
-    { label: 'G 추격+선두 동시 개입', mode: 'combined', gap: 0.25, targetFactor: 1.06, rivalFactor: 0.90, cooldown: 0.5, maxAssists: 12, startImpulse: 0 },
-    { label: 'H 강한 출발+추격', mode: 'target-speed', gap: 0.25, targetFactor: 1.06, rivalFactor: 1, cooldown: 0.5, maxAssists: 12, startImpulse: 0.8 },
-    { label: 'I 강한 출발+복합 개입', mode: 'combined', gap: 0.25, targetFactor: 1.06, rivalFactor: 0.90, cooldown: 0.5, maxAssists: 12, startImpulse: 0.8 },
+    { label: '현재 적용 보정 (중반 이후 ×1.15 / 0.35초 / 최대 24회)', mode: 'target-speed', gap: 0.25, targetFactor: 1.15, rivalFactor: 1, cooldown: 0.35, maxAssists: 24, startImpulse: 0 },
   ];
 
   console.log(`맵: ${stages[mapIndex].title} / 참가: ${n} / 조건별 반복: ${trials}`);
-  console.log('| 보정 방식 | 1등 횟수 | 우승률 | 평균 보정 횟수 | 평균 완주시간 |');
+  console.log('| 보정 방식 | 1·2등 진입 | 진입률 | 평균 보정 횟수 | 평균 완주시간 |');
   console.log('|---|---:|---:|---:|---:|');
 
   for (const policy of policies) {
-    let wins = 0;
+    let topTwo = 0;
     let assistTotal = 0;
     let timeTotal = 0;
     for (let i = 0; i < trials; i++) {
       const result = await race(20261104 + i, n, mapIndex, policy);
-      if (result.targetWon) wins++;
+      if (result.topTwo) topTwo++;
       assistTotal += result.assists;
       timeTotal += result.seconds;
     }
     console.log(
-      `| ${policy.label} | ${wins}/${trials} | ${(wins / trials * 100).toFixed(1)}% | ${(assistTotal / trials).toFixed(1)} | ${(timeTotal / trials).toFixed(1)}s |`
+      `| ${policy.label} | ${topTwo}/${trials} | ${(topTwo / trials * 100).toFixed(1)}% | ${(assistTotal / trials).toFixed(1)} | ${(timeTotal / trials).toFixed(1)}s |`
     );
   }
 }
