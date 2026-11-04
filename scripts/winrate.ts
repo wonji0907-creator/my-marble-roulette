@@ -56,7 +56,7 @@ async function race(seed: number, n: number, mapIndex: number, policy: Policy): 
   const alive = new Set(Array.from({ length: n }, (_, i) => i));
   const removals: { id: number; time: number }[] = [];
   let elapsed = 0;
-  let lastAssist = -COOLDOWN;
+  let lastAssist = -policy.cooldown;
   let assists = 0;
   let winner: number | null = null;
 
