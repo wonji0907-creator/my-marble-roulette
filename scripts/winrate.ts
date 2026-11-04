@@ -33,7 +33,7 @@ class NodePhysics extends Box2dPhysics {
   }
 }
 
-type Policy = { label: string; mode: 'none' | 'target-speed' | 'rival-slow' | 'combined'; gap: number; targetFactor: number; rivalFactor: number; cooldown: number; maxAssists: number };
+type Policy = { label: string; mode: 'none' | 'target-speed' | 'leader-slow' | 'combined'; gap: number; targetFactor: number; rivalFactor: number; cooldown: number; maxAssists: number };
 type Outcome = { winner: number | null; targetWon: boolean; assists: number; seconds: number };
 
 async function race(seed: number, n: number, mapIndex: number, policy: Policy): Promise<Outcome> {
@@ -111,10 +111,8 @@ async function race(seed: number, n: number, mapIndex: number, policy: Policy): 
       if (policy.mode === 'target-speed' || policy.mode === 'combined') {
         physics.adjustMarbleSpeed(target, policy.targetFactor);
       }
-      if (policy.mode === 'rival-slow' || policy.mode === 'combined') {
-        for (const id of alive) {
-          if (id !== target) physics.adjustMarbleSpeed(id, policy.rivalFactor);
-        }
+      if (policy.mode === 'leader-slow' || policy.mode === 'combined') {
+        if (leader && leader.id !== target) physics.adjustMarbleSpeed(leader.id, policy.rivalFactor);
       }
       lastAssist = elapsed;
       assists++;
@@ -140,9 +138,10 @@ async function main() {
   const mapIndex = 0; // Wheel of fortune 전용 실험
   const policies: Policy[] = [
     { label: '무보정 기준', mode: 'none', gap: 0, targetFactor: 1, rivalFactor: 1, cooldown: 0, maxAssists: 0 },
-    { label: 'A 목표 구슬 +1.5%', mode: 'target-speed', gap: 1.0, targetFactor: 1.015, rivalFactor: 1, cooldown: 0.5, maxAssists: 16 },
-    { label: 'B 경쟁 구슬 -1%', mode: 'rival-slow', gap: 1.0, targetFactor: 1, rivalFactor: 0.99, cooldown: 0.5, maxAssists: 16 },
-    { label: 'C 두 방식 결합', mode: 'combined', gap: 1.0, targetFactor: 1.015, rivalFactor: 0.99, cooldown: 0.5, maxAssists: 16 },
+    { label: 'A 목표 구슬 초미세 가속', mode: 'target-speed', gap: 0.5, targetFactor: 1.0015, rivalFactor: 1, cooldown: 0.35, maxAssists: 12 },
+    { label: 'B 선두만 초미세 감속', mode: 'leader-slow', gap: 0.5, targetFactor: 1, rivalFactor: 0.999, cooldown: 0.5, maxAssists: 12 },
+    { label: 'C 두 방식 결합', mode: 'combined', gap: 0.5, targetFactor: 1.001, rivalFactor: 0.9995, cooldown: 0.4, maxAssists: 12 },
+    { label: 'D 더 늦게 개입하는 가속', mode: 'target-speed', gap: 1.5, targetFactor: 1.002, rivalFactor: 1, cooldown: 0.6, maxAssists: 8 },
   ];
 
   console.log(`맵: ${stages[mapIndex].title} / 참가: ${n} / 조건별 반복: ${trials}`);
