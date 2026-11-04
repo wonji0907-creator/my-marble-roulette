@@ -130,6 +130,16 @@ export class Box2dPhysics implements IPhysics {
     }
   }
 
+  slowMarble(id: number): void {
+    const marble = this.marbleMap[id];
+    if (marble) {
+      const velocity = marble.GetLinearVelocity();
+      marble.SetLinearVelocity(new this.Box2D.b2Vec2(velocity.x * 0.92, velocity.y * 0.92));
+      marble.SetAngularVelocity(marble.GetAngularVelocity() * 0.92);
+      marble.SetAwake(true);
+    }
+  }
+
   holdMarble(id: number): void {
     const marble = this.marbleMap[id];
     if (marble) {
