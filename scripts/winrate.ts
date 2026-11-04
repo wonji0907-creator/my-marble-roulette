@@ -112,7 +112,7 @@ async function race(seed: number, n: number, mapIndex: number, policy: Policy): 
 async function main() {
   const trials = Math.max(1, Number(process.argv[2] ?? 100));
   const n = Math.max(2, Number(process.argv[3] ?? 5));
-  const mapIndex = Math.max(0, Math.min(stages.length - 1, Number(process.argv[4] ?? 0)));
+  const mapIndex = 0; // Wheel of fortune 전용 실험
   const policies: Policy[] = [
     { label: '무보정', gap: 0, impulse: 0 },
     { label: '미세·근접', gap: 0.5, impulse: 0.05 },
