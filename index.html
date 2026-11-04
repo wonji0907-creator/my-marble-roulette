@@ -74,7 +74,6 @@
     const testWinnerName = testModeEnabled && names.length ? parseName(names[0]).name : null;
     window.roulette.setTestWinner(testWinnerName);
     ready = names.length > 0;
-    updateTestModeDisplay(testWinnerName);
     localStorage.setItem('mbr_names', names.join(','));
     applyWinnerSetting();
   }
@@ -138,15 +137,6 @@
   let winnerType = 'first';
   let testModeEnabled = localStorage.getItem('mbr_test_mode') === 'true';
 
-  function updateTestModeDisplay(winnerName) {
-    const banner = document.querySelector('#testModeBanner');
-    const name = document.querySelector('#testModeWinnerName');
-    const help = document.querySelector('#testModeHelp');
-    if (!banner || !name || !help) return;
-    name.textContent = winnerName || '참가자 없음';
-    banner.hidden = !testModeEnabled;
-    help.hidden = !testModeEnabled;
-  }
 
   document.addEventListener('DOMContentLoaded', () => {
     initialize();
@@ -278,10 +268,6 @@
     document.querySelector('#in_rangeEnd').addEventListener('change', () => selectWinnerType('multi', 'end'));
 
     window.roulette.addEventListener('goal', (e) => {
-      if (testModeEnabled) {
-        updateTestModeDisplay(e.detail && e.detail.winner);
-        document.querySelector('#testModeBanner').hidden = false;
-      }
       ready = false;
       if (window.ads) window.ads.showResult();
       setTimeout(() => {
@@ -432,9 +418,6 @@
           <input type="checkbox" id="chkTestMode" />
         </div>
       </div>
-      <div class="row" id="testModeHelp" hidden>
-        <small>테스트 모드에서는 첫 번째 입력 참가자를 지정 1등으로 표시합니다. 실제 물리 레이스 순위와 결과가 다를 수 있습니다.</small>
-      </div>
       <div class="row row-theme">
         <div class='theme'>
           <i class='icon sun'></i>
@@ -466,9 +449,6 @@
       </button>
     </div>
   </div>
-</div>
-<div id="testModeBanner" hidden style="position:fixed;z-index:1000;top:12px;left:50%;transform:translateX(-50%);max-width:calc(100% - 24px);padding:10px 16px;border:2px solid #e0a000;border-radius:10px;background:#241d0d;color:#ffd76a;font-weight:700;text-align:center;box-shadow:0 2px 12px #0006;">
-  테스트 모드 · 지정 결과: <span id="testModeWinnerName"></span> (물리 레이스 순위와 다를 수 있음)
 </div>
 <div id="notice">
   <h2>Notice</h2>
