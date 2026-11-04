@@ -268,9 +268,8 @@ export class Roulette extends EventTarget {
         const progress = ProgressMap.for(this._stage);
         const targetDistance = progress.distanceAt(target.x, target.y);
         const leaderDistance = progress.distanceAt(leader.x, leader.y);
-        // 초반에는 자연스러운 경주를 유지하고, 전체 경로의 약 40%를 지난 중반부터 뒤처질 때 추격 보정한다.
-        const midCourseReached = targetDistance <= progress.maxDist * 0.6;
-        if (midCourseReached && targetDistance > leaderDistance + 0.25 && this._testChaseElapsed - this._testChaseLastAssist >= 0.35) {
+        // 출발 직후부터 선두보다 뒤처진 경우 추격 보정을 적용한다.
+        if (targetDistance > leaderDistance + 0.25 && this._testChaseElapsed - this._testChaseLastAssist >= 0.35) {
           this.physics.adjustMarbleSpeed(target.id, 1.15);
           this._testChaseLastAssist = this._testChaseElapsed;
           this._testChaseAssists++;
