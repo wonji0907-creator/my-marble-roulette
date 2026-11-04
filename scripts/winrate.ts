@@ -11,8 +11,8 @@ import { Box2dPhysics } from '../src/physics-box2d';
 
 const STEP = 0.01;
 const MAX_SECONDS = 240;
-const COOLDOWN = 0.4;
-const MAX_ASSISTS = 18;
+const COOLDOWN = 0.3;
+const MAX_ASSISTS = 24;
 
 function seedRandom(seed: number) {
   let a = seed >>> 0;
@@ -113,33 +113,12 @@ async function main() {
   const mapIndex = Math.max(0, Math.min(stages.length - 1, Number(process.argv[4] ?? 0)));
   const policies: Policy[] = [
     { label: '무보정', gap: 0, impulse: 0 },
-    { label: '약한 보정', gap: 1.5, impulse: 0.015 },
-    { label: '중간 보정', gap: 1.5, impulse: 0.03 },
-    { label: '강한 보정', gap: 1.5, impulse: 0.05 },
-    { label: '넓은 추격', gap: 3, impulse: 0.03 },
+    { label: '미세·근접', gap: 0.5, impulse: 0.05 },
+    { label: '약한·근접', gap: 0.5, impulse: 0.1 },
+    { label: '중간·근접', gap: 0.5, impulse: 0.2 },
+    { label: '약한·중간거리', gap: 1.5, impulse: 0.1 },
+    { label: '중간·중간거리', gap: 1.5, impulse: 0.2 },
+    { label: '강한·중간거리', gap: 1.5, impulse: 0.35 },
+    { label: '약한·먼거리', gap: 3, impulse: 0.1 },
+    { label: '중간·먼거리', gap: 3, impulse: 0.2 },
   ];
-
-  console.log(`맵: ${stages[mapIndex].title} / 참가: ${n} / 각 조건: ${trials}회`);
-  console.log('| 방식 | 실제 1등 | 우승률 | 평균 보정 횟수 |');
-  console.log('|---|---:|---:|---:|');
-  for (const policy of policies) {
-    let wins = 0;
-    let assistTotal = 0;
-    for (let i = 0; i < trials; i++) {
-      // 각 정책은 같은 seed 묶음을 사용해 비교 편향을 줄인다.
-      const result = await race(20261104 + i, n, mapIndex, policy);
-      if (result.winner !== null && result.winner >= 0) {
-        // target id는 race 내부에서 시드로 정해지므로 별도 판정은 race에서 계산한다.
-      }
-      assistTotal += result.assists;
-      // 우승 여부는 race의 반환값에 target을 포함해 아래에서 계산한다.
-      if ((result as any).targetWon) wins++;
-    }
-    console.log(`| ${policy.label} | ${wins}/${trials} | ${(wins / trials * 100).toFixed(1)}% | ${(assistTotal / trials).toFixed(1)} |`);
-  }
-}
-
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
