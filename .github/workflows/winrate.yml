@@ -1,0 +1,22 @@
+name: Winner probability experiment
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/winrate.ts'
+      - '.github/workflows/winrate.yml'
+      - 'src/physics-box2d.ts'
+      - 'src/progressMap.ts'
+jobs:
+  winrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Run paired winner-rate trials
+        run: npm run winrate -- 20 5 0
