@@ -1,0 +1,22 @@
+name: Physics telemetry experiment
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/diagnose.ts'
+      - 'src/physics-box2d.ts'
+      - '.github/workflows/diagnose.yml'
+      - 'package.json'
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - name: Collect baseline physics telemetry
+        run: npm run diagnose -- 300 5

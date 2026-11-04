@@ -73,6 +73,10 @@ export class Roulette extends EventTarget {
   /** 테스트 모드에서 실제 1등으로 통과시킬 구슬 */
   private _testWinnerName: string | null = null;
   private _testWinnerMarbleId: number | null = null;
+  /** 테스트 모드 전용 추격 보정 상태 */
+  private _testChaseElapsed = 0;
+  private _testChaseLastAssist = -Infinity;
+  private _testChaseAssists = 0;
 
   // 구슬 id(= order)는 매 라운드 재사용된다. 리셋 시 취소하지 않으면 이 타이머가
   // 뒤늦게 발화해 같은 id를 가진 새 라운드의 구슬을 지워버린다
@@ -251,6 +255,24 @@ export class Roulette extends EventTarget {
             this.physics.removeMarble(marble.id);
           }, 500)
         );
+      }
+    }
+
+    // 테스트 모드 전용: Wheel of fortune에서 선택 구슬이 뒤처지면 제한적으로 추격 가속.
+    // 0.5초 쿨다운과 라운드당 12회 제한으로 과도한 누적을 방지한다.
+    if (this._mapId === 'builtin:0' && this._testWinnerMarbleId !== null) {
+      this._testChaseElapsed += (deltaTime / 1000) * timeScale;
+      const target = this._marbles.find((m) => m.id === this._testWinnerMarbleId);
+      const leader = this._marbles[0];
+      if (target && leader && target !== leader && this._testChaseAssists < 12) {
+        const progress = ProgressMap.for(this._stage);
+        const targetDistance = progress.distanceAt(target.x, target.y);
+        const leaderDistance = progress.distanceAt(leader.x, leader.y);
+        if (targetDistance > leaderDistance + 0.25 && this._testChaseElapsed - this._testChaseLastAssist >= 0.5) {
+          this.physics.adjustMarbleSpeed(target.id, 1.08);
+          this._testChaseLastAssist = this._testChaseElapsed;
+          this._testChaseAssists++;
+        }
       }
     }
 
@@ -489,8 +511,11 @@ export class Roulette extends EventTarget {
 
     // 테스트 모드에서는 지정 구슬에 출발 순간 아주 약한 전진 충격량만 준다.
     // 경주 중 속도나 충돌을 강제로 덮어쓰지 않으므로 모든 구슬이 정상적으로 완주한다.
-    if (this._testWinnerMarbleId !== null) {
-      this.physics.boostMarble(this._testWinnerMarbleId, 0.08);
+    if (this._mapId === 'builtin:0' && this._testWinnerMarbleId !== null) {
+      this._testChaseElapsed = 0;
+      this._testChaseLastAssist = -Infinity;
+      this._testChaseAssists = 0;
+      this.physics.boostMarble(this._testWinnerMarbleId, 0.8);
     }
   }
 

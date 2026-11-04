@@ -33,7 +33,7 @@ class NodePhysics extends Box2dPhysics {
   }
 }
 
-type Policy = { label: string; mode: 'none' | 'target-speed' | 'leader-slow' | 'combined'; gap: number; targetFactor: number; rivalFactor: number; cooldown: number; maxAssists: number };
+type Policy = { label: string; mode: 'none' | 'target-speed' | 'leader-slow' | 'combined'; gap: number; targetFactor: number; rivalFactor: number; cooldown: number; maxAssists: number; startImpulse: number };
 type Outcome = { winner: number | null; targetWon: boolean; assists: number; seconds: number };
 
 async function race(seed: number, n: number, mapIndex: number, policy: Policy): Promise<Outcome> {
@@ -52,6 +52,8 @@ async function race(seed: number, n: number, mapIndex: number, policy: Policy): 
   }
   const target = Math.floor(Math.random() * n);
   physics.start();
+  // 시작 개입은 테스트 정책에서만 실행. 양의 Y 방향은 이 맵의 목표 방향이다.
+  if (policy.startImpulse > 0) physics.boostMarble(target, policy.startImpulse);
 
   const alive = new Set(Array.from({ length: n }, (_, i) => i));
   const removals: { id: number; time: number }[] = [];
@@ -59,6 +61,9 @@ async function race(seed: number, n: number, mapIndex: number, policy: Policy): 
   let lastAssist = -policy.cooldown;
   let assists = 0;
   let winner: number | null = null;
+  let previousTargetSpeed = 0;
+  let previousTargetVx = 0;
+  let previousTargetVy = 0;
 
   while (alive.size && elapsed < MAX_SECONDS) {
     // 실제 게임처럼 슬로우모션 구간에서는 물리 시간만 느리게 진행한다.
@@ -137,11 +142,16 @@ async function main() {
   const n = Math.max(2, Number(process.argv[3] ?? 5));
   const mapIndex = 0; // Wheel of fortune 전용 실험
   const policies: Policy[] = [
-    { label: '무보정 기준', mode: 'none', gap: 0, targetFactor: 1, rivalFactor: 1, cooldown: 0, maxAssists: 0 },
-    { label: 'A 목표 구슬 초미세 가속', mode: 'target-speed', gap: 0.5, targetFactor: 1.0015, rivalFactor: 1, cooldown: 0.35, maxAssists: 12 },
-    { label: 'B 선두만 초미세 감속', mode: 'leader-slow', gap: 0.5, targetFactor: 1, rivalFactor: 0.999, cooldown: 0.5, maxAssists: 12 },
-    { label: 'C 두 방식 결합', mode: 'combined', gap: 0.5, targetFactor: 1.001, rivalFactor: 0.9995, cooldown: 0.4, maxAssists: 12 },
-    { label: 'D 더 늦게 개입하는 가속', mode: 'target-speed', gap: 1.5, targetFactor: 1.002, rivalFactor: 1, cooldown: 0.6, maxAssists: 8 },
+    { label: '기준선', mode: 'none', gap: 0, targetFactor: 1, rivalFactor: 1, cooldown: 0, maxAssists: 0, startImpulse: 0 },
+    { label: 'A 강한 출발 +0.8', mode: 'none', gap: 0, targetFactor: 1, rivalFactor: 1, cooldown: 0, maxAssists: 0, startImpulse: 0.8 },
+    { label: 'B 매우 강한 출발 +2.0', mode: 'none', gap: 0, targetFactor: 1, rivalFactor: 1, cooldown: 0, maxAssists: 0, startImpulse: 2.0 },
+    { label: 'C 강한 추격 가속 ×1.06', mode: 'target-speed', gap: 0.25, targetFactor: 1.06, rivalFactor: 1, cooldown: 0.5, maxAssists: 12, startImpulse: 0 },
+    { label: 'D 초강한 추격 가속 ×1.12', mode: 'target-speed', gap: 0.25, targetFactor: 1.12, rivalFactor: 1, cooldown: 0.5, maxAssists: 12, startImpulse: 0 },
+    { label: 'E 선두 감속 ×0.90', mode: 'leader-slow', gap: 0.25, targetFactor: 1, rivalFactor: 0.90, cooldown: 0.5, maxAssists: 12, startImpulse: 0 },
+    { label: 'F 초강한 선두 감속 ×0.80', mode: 'leader-slow', gap: 0.25, targetFactor: 1, rivalFactor: 0.80, cooldown: 0.5, maxAssists: 12, startImpulse: 0 },
+    { label: 'G 추격+선두 동시 개입', mode: 'combined', gap: 0.25, targetFactor: 1.06, rivalFactor: 0.90, cooldown: 0.5, maxAssists: 12, startImpulse: 0 },
+    { label: 'H 강한 출발+추격', mode: 'target-speed', gap: 0.25, targetFactor: 1.06, rivalFactor: 1, cooldown: 0.5, maxAssists: 12, startImpulse: 0.8 },
+    { label: 'I 강한 출발+복합 개입', mode: 'combined', gap: 0.25, targetFactor: 1.06, rivalFactor: 0.90, cooldown: 0.5, maxAssists: 12, startImpulse: 0.8 },
   ];
 
   console.log(`맵: ${stages[mapIndex].title} / 참가: ${n} / 조건별 반복: ${trials}`);
