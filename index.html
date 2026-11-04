@@ -135,7 +135,7 @@
 
   let ready = false;
   let winnerType = 'first';
-  let testModeEnabled = localStorage.getItem('mbr_test_mode') === 'true';
+  // Public build: keep administrator test mode disabled.
 
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -229,19 +229,6 @@
         window.ads.beginRound(() => window.roulette.start());
       } else {
         window.roulette.start();
-      }
-    });
-
-    const testModeCheckbox = document.querySelector('#chkTestMode');
-    testModeCheckbox.checked = testModeEnabled;
-    testModeCheckbox.addEventListener('change', (e) => {
-      testModeEnabled = e.target.checked;
-      localStorage.setItem('mbr_test_mode', String(testModeEnabled));
-      getReady();
-      if (testModeEnabled) {
-        simpleToast('테스트 모드가 켜졌습니다. 지정 결과가 표시됩니다.');
-      } else {
-        simpleToast('일반 무작위 모드로 전환했습니다.');
       }
     });
 
@@ -407,15 +394,6 @@
           <input type="number" id="in_rangeStart" value="1" min="1" />
           <span class="range-sep">~</span>
           <input type="number" id="in_rangeEnd" value="3" min="1" />
-        </div>
-      </div>
-      <div class="row row-toggles">
-        <div class="toggle-item">
-          <label for="chkTestMode">
-            <i class="icon trophy"></i>
-            <span>관리자 테스트 모드</span>
-          </label>
-          <input type="checkbox" id="chkTestMode" />
         </div>
       </div>
       <div class="row row-theme">
