@@ -146,6 +146,25 @@ export class Box2dPhysics implements IPhysics {
     marble.SetLinearVelocity(velocity);
   }
 
+  /** 실험 진단 전용: 구슬의 실제 Box2D 속도와 접촉 상태를 읽는다. 물리 상태를 변경하지 않는다. */
+  getMarbleTelemetry(id: number): { x: number; y: number; vx: number; vy: number; speed: number; touching: boolean } | null {
+    const marble = this.marbleMap[id];
+    if (!marble) return null;
+    const position = marble.GetPosition();
+    const velocity = marble.GetLinearVelocity();
+    let touching = false;
+    for (let edge = marble.GetContactList(); this.Box2D.getPointer(edge) !== 0; edge = edge.next) {
+      if (edge.contact.IsTouching()) {
+        touching = true;
+        break;
+      }
+    }
+    return {
+      x: position.x, y: position.y, vx: velocity.x, vy: velocity.y,
+      speed: Math.hypot(velocity.x, velocity.y), touching,
+    };
+  }
+
   getMarblePosition(id: number): { x: number; y: number; angle: number } {
     const marble = this.marbleMap[id];
     if (marble) {
