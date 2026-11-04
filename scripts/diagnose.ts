@@ -108,6 +108,7 @@ async function runRace(seed: number, n: number) {
   const alive = new Set(Array.from({ length: n }, (_, i) => i));
   const removals: { id: number; time: number }[] = [];
   const metrics = Array.from({ length: n }, freshMetrics);
+  const segmentMetrics = Array.from({ length: n }, () => Array.from({ length: 5 }, freshMetrics));
   const previous = new Map<number, Snapshot>();
   let elapsed = 0;
   let winner: number | null = null;
@@ -134,6 +135,9 @@ async function runRace(seed: number, n: number) {
         if (!t) continue;
         const s: Snapshot = { ...t, distance: progress.distanceAt(t.x, t.y) };
         addSample(metrics[id], s, previous.get(id));
+        const progressPct = Math.max(0, Math.min(0.999999, 1 - s.distance / progress.maxDist));
+        const segment = Math.floor(progressPct * 5);
+        addSample(segmentMetrics[id][segment], s, previous.get(id));
         previous.set(id, s);
       }
     }
@@ -148,7 +152,7 @@ async function runRace(seed: number, n: number) {
     }
     removals.sort((a,b) => a.time - b.time);
   }
-  return { target, winner, metrics, seconds: elapsed };
+  return { target, winner, metrics, segmentMetrics, seconds: elapsed };
 }
 
 async function main() {
@@ -158,6 +162,7 @@ async function main() {
   let targetWins = 0;
   let completed = 0;
   const finishTimes: number[] = [];
+  const segmentGroups = Array.from({ length: 5 }, () => ({ target: freshMetrics(), rivals: freshMetrics() }));
   for (let i = 0; i < trials; i++) {
     const r = await runRace(20261104 + i, n);
     if (r.winner === null) continue;
@@ -170,19 +175,28 @@ async function main() {
         : (id === r.winner ? groups.otherWinners : groups.otherMarbles);
       const source = r.metrics[id];
       addRaceSummary(bucket, source);
+      addRaceSummary(id === r.target ? segmentGroups[0].target : segmentGroups[0].rivals, freshMetrics());
+      for (let segment = 0; segment < 5; segment++) {
+        addRaceSummary(id === r.target ? segmentGroups[segment].target : segmentGroups[segment].rivals, r.segmentMetrics[id][segment]);
+      }
     }
   }
   const result = {
     map: stages[0].title, marbles: n, requestedTrials: trials, completedTrials: completed,
     targetWinRate: +(targetWins / Math.max(1, completed) * 100).toFixed(2),
     meanFinishSeconds: +(finishTimes.reduce((a,b)=>a+b,0) / Math.max(1,finishTimes.length)).toFixed(2),
+    progressSegments: segmentGroups.map((g, i) => ({
+      segment: `${i * 20}-${(i + 1) * 20}%`,
+      selected: report('selected', g.target),
+      rivals: report('rivals', g.rivals),
+    })),
     telemetry: [
       report('selected marble wins', groups.targetWins),
       report('selected marble loses', groups.targetLosses),
       report('other marble wins', groups.otherWinners),
       report('other marbles lose', groups.otherMarbles),
     ],
-    note: 'Read-only telemetry. Each race contributes one equally weighted per-marble summary, reducing bias from winners finishing sooner. Contact is sampled every 0.05s, so brief contacts may be missed; this is not a causal intervention test.'
+    note: 'Read-only telemetry. Progress segments use distanceAt/maxDist. Each race contributes one equally weighted per-marble summary. Contact is sampled every 0.05s, so brief contacts may be missed. Finish detection remains sampled and approximate; this is not a causal intervention test.'
   };
   console.log(JSON.stringify(result, null, 2));
 }
