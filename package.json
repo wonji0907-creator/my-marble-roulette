@@ -17,7 +17,8 @@
     "build": "parcel build index.html --public-url /my-marble-roulette/ && node scripts/build-sw.js",
     "simulate": "tsx scripts/simulate.ts",
     "winrate": "tsx scripts/winrate.ts",
-    "diagnose": "tsx scripts/diagnose.ts"
+    "diagnose": "tsx scripts/diagnose.ts",
+    "build:pages": "parcel build index.html --public-url / && node scripts/build-sw.js"
   },
   "dependencies": {
     "box2d-wasm": "^7.0.0"
