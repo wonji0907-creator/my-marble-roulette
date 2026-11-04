@@ -241,14 +241,14 @@ export class Roulette extends EventTarget {
         this._effects.push(new SkillEffect(marble.x, marble.y));
         this.physics.impact(marble.id);
       }
-      // 테스트 모드에서는 지정 구슬 외의 구슬을 결승선 직전에서 부드럽게 대기시킨다.
-      // 물리 바디를 비활성화해 충돌을 막으므로 지정 구슬의 진행을 방해하지 않는다.
-      if (
-        this._testWinnerMarbleId !== null &&
-        marble.id !== this._testWinnerMarbleId &&
-        marble.y >= this._stage.goalY - 1.5
-      ) {
-        this.physics.holdMarble(marble.id);
+      // 지정 구슬 이외의 구슬은 결승선에서 충분히 떨어진 곳부터 감속시킨다.
+      // 마지막 구간에서 정지시켜 결승선 통과를 막되, 급정지처럼 보이지 않게 한다.
+      if (this._testWinnerMarbleId !== null && marble.id !== this._testWinnerMarbleId) {
+        if (marble.y >= this._stage.goalY - 2.5 && marble.y < this._stage.goalY - 0.35) {
+          this.physics.slowMarble(marble.id);
+        } else if (marble.y >= this._stage.goalY - 0.35) {
+          this.physics.holdMarble(marble.id);
+        }
       }
       if (marble.y > this._stage.goalY) {
         this._winners.push(marble);
