@@ -241,15 +241,6 @@ export class Roulette extends EventTarget {
         this._effects.push(new SkillEffect(marble.x, marble.y));
         this.physics.impact(marble.id);
       }
-      // 지정 구슬 이외의 구슬은 결승선에서 충분히 떨어진 곳부터 감속시킨다.
-      // 마지막 구간에서 정지시켜 결승선 통과를 막되, 급정지처럼 보이지 않게 한다.
-      if (this._testWinnerMarbleId !== null && marble.id !== this._testWinnerMarbleId) {
-        if (marble.y >= this._stage.goalY - 2.5 && marble.y < this._stage.goalY - 0.35) {
-          this.physics.slowMarble(marble.id);
-        } else if (marble.y >= this._stage.goalY - 0.35) {
-          this.physics.holdMarble(marble.id);
-        }
-      }
       if (marble.y > this._stage.goalY) {
         this._winners.push(marble);
         if (this._isRunning && this._isWinningRank(this._winners.length - 1)) {
@@ -492,19 +483,26 @@ export class Roulette extends EventTarget {
     }
   }
 
+  private _startPhysics() {
+    this.physics.start();
+    this._marbles.forEach((marble) => (marble.isActive = true));
+
+    // 테스트 모드에서는 지정 구슬에 출발 순간 아주 약한 전진 충격량만 준다.
+    // 경주 중 속도나 충돌을 강제로 덮어쓰지 않으므로 모든 구슬이 정상적으로 완주한다.
+    if (this._testWinnerMarbleId !== null) {
+      this.physics.boostMarble(this._testWinnerMarbleId, 0.08);
+    }
+  }
+
   public start() {
     this._isRunning = true;
     this._winnerRange = clipWinnerRange(options.winnerRange, this._marbles.length);
     this._camera.startFollowingMarbles();
 
     if (this._autoRecording) {
-      this._recorder.start().then(() => {
-        this.physics.start();
-        this._marbles.forEach((marble) => (marble.isActive = true));
-      });
+      this._recorder.start().then(() => this._startPhysics());
     } else {
-      this.physics.start();
-      this._marbles.forEach((marble) => (marble.isActive = true));
+      this._startPhysics();
     }
   }
 
