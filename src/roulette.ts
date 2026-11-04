@@ -259,18 +259,18 @@ export class Roulette extends EventTarget {
     }
 
     // 테스트 모드 전용: Wheel of fortune에서 선택 구슬이 뒤처지면 제한적으로 추격 가속.
-    // 0.35초 쿨다운과 라운드당 24회 제한으로 과도한 누적을 방지한다.
+    // 0.25초 쿨다운과 라운드당 32회 제한으로 과도한 누적을 방지한다.
     if (this._mapId === 'builtin:0' && this._testWinnerMarbleId !== null) {
       this._testChaseElapsed += (deltaTime / 1000) * timeScale;
       const target = this._marbles.find((m) => m.id === this._testWinnerMarbleId);
       const leader = this._marbles[0];
-      if (target && leader && target !== leader && this._testChaseAssists < 24) {
+      if (target && leader && target !== leader && this._testChaseAssists < 32) {
         const progress = ProgressMap.for(this._stage);
         const targetDistance = progress.distanceAt(target.x, target.y);
         const leaderDistance = progress.distanceAt(leader.x, leader.y);
         // 출발 직후부터 선두보다 뒤처진 경우 추격 보정을 적용한다.
-        if (targetDistance > leaderDistance + 0.25 && this._testChaseElapsed - this._testChaseLastAssist >= 0.35) {
-          this.physics.adjustMarbleSpeed(target.id, 1.15);
+        if (targetDistance > leaderDistance + 0.25 && this._testChaseElapsed - this._testChaseLastAssist >= 0.25) {
+          this.physics.adjustMarbleSpeed(target.id, 1.2);
           this._testChaseLastAssist = this._testChaseElapsed;
           this._testChaseAssists++;
         }
