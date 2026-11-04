@@ -16,6 +16,9 @@ export interface IPhysics {
 
   removeMarble(id: number): void;
 
+  /** 테스트 모드에서 지정하지 않은 구슬을 결승선 앞에서 부드럽게 감속시킨다. */
+  slowMarble(id: number): void;
+
   /** 테스트 모드에서 지정하지 않은 구슬을 결승선 앞에 대기시킨다. */
   holdMarble(id: number): void;
 
