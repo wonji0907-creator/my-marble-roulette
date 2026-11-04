@@ -1,7 +1,7 @@
 /**
  * 지정 구슬 실제 우승률 실험기.
- * npm run winrate -- [trials=60] [marbles=5] [mapIndex=0]
- * 같은 시드/배치에서 무보정과 적응형 보정을 비교한다.
+ * npm run winrate -- [trials=100] [marbles=5] [mapIndex=0]
+ * 모든 정책은 동일한 시드 목록으로 비교한다.
  */
 import * as fs from 'node:fs';
 import Box2DFactory from 'box2d-wasm';
@@ -36,7 +36,7 @@ class NodePhysics extends Box2dPhysics {
 }
 
 type Policy = { label: string; gap: number; impulse: number };
-type Outcome = { winner: number | null; target: number; targetWon: boolean; assists: number; seconds: number };
+type Outcome = { winner: number | null; targetWon: boolean; assists: number; seconds: number };
 
 async function race(seed: number, n: number, mapIndex: number, policy: Policy): Promise<Outcome> {
   seedRandom(seed);
@@ -80,10 +80,12 @@ async function race(seed: number, n: number, mapIndex: number, policy: Policy): 
       else leaderDistance = Math.min(leaderDistance, d);
     }
 
-    // 지정 구슬이 선두보다 코스상 충분히 뒤처졌을 때만 드물게 작은 충격량을 준다.
+    // 진행도 차이가 임계값을 넘을 때만 작은 충격량을 주며, 속도나 결승 결과는 강제하지 않는다.
     if (
       policy.impulse > 0 &&
       alive.has(target) &&
+      Number.isFinite(targetDistance) &&
+      Number.isFinite(leaderDistance) &&
       targetDistance > leaderDistance + policy.gap &&
       elapsed - lastAssist >= COOLDOWN &&
       assists < MAX_ASSISTS
@@ -104,11 +106,11 @@ async function race(seed: number, n: number, mapIndex: number, policy: Policy): 
     removals.sort((a, b) => a.time - b.time);
   }
 
-  return { winner, target, targetWon: winner === target, assists, seconds: elapsed };
+  return { winner, targetWon: winner === target, assists, seconds: elapsed };
 }
 
 async function main() {
-  const trials = Math.max(1, Number(process.argv[2] ?? 60));
+  const trials = Math.max(1, Number(process.argv[2] ?? 100));
   const n = Math.max(2, Number(process.argv[3] ?? 5));
   const mapIndex = Math.max(0, Math.min(stages.length - 1, Number(process.argv[4] ?? 0)));
   const policies: Policy[] = [
@@ -122,3 +124,28 @@ async function main() {
     { label: '약한·먼거리', gap: 3, impulse: 0.1 },
     { label: '중간·먼거리', gap: 3, impulse: 0.2 },
   ];
+
+  console.log(`맵: ${stages[mapIndex].title} / 참가: ${n} / 조건별 반복: ${trials}`);
+  console.log('| 보정 방식 | 1등 횟수 | 우승률 | 평균 보정 횟수 | 평균 완주시간 |');
+  console.log('|---|---:|---:|---:|---:|');
+
+  for (const policy of policies) {
+    let wins = 0;
+    let assistTotal = 0;
+    let timeTotal = 0;
+    for (let i = 0; i < trials; i++) {
+      const result = await race(20261104 + i, n, mapIndex, policy);
+      if (result.targetWon) wins++;
+      assistTotal += result.assists;
+      timeTotal += result.seconds;
+    }
+    console.log(
+      `| ${policy.label} | ${wins}/${trials} | ${(wins / trials * 100).toFixed(1)}% | ${(assistTotal / trials).toFixed(1)} | ${(timeTotal / trials).toFixed(1)}s |`
+    );
+  }
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
