@@ -33,7 +33,7 @@ class NodePhysics extends Box2dPhysics {
   }
 }
 
-type Policy = { label: string; gap: number; impulse: number; cooldown: number; maxAssists: number };
+type Policy = { label: string; mode: 'none' | 'slowmo' | 'rank' | 'both'; gap: number; impulse: number; cooldown: number; maxAssists: number };
 type Outcome = { winner: number | null; targetWon: boolean; assists: number; seconds: number };
 
 async function race(seed: number, n: number, mapIndex: number, policy: Policy): Promise<Outcome> {
@@ -61,7 +61,22 @@ async function race(seed: number, n: number, mapIndex: number, policy: Policy): 
   let winner: number | null = null;
 
   while (alive.size && elapsed < MAX_SECONDS) {
-    physics.step(STEP);
+    // 실제 게임처럼 슬로우모션 구간에서는 물리 시간만 느리게 진행한다.
+    const rankedNow = [...alive].map((id) => {
+      const p = physics.getMarblePosition(id);
+      return { id, d: progress.distanceAt(p.x, p.y), y: p.y };
+    }).sort((a, b) => a.d - b.d);
+    const leader = rankedNow[0];
+    const rival = rankedNow[1];
+    const intensity = (y: number) => Math.max(0, 1 - Math.abs(stage.zoomY - y) / 5);
+    const focusY = leader && rival
+      ? (intensity(rival.y) > intensity(leader.y) ? rival.y : leader.y)
+      : leader?.y ?? 0;
+    const slowMotion = !!leader && !!rival &&
+      Math.abs(stage.zoomY - focusY) < 5 &&
+      focusY > stage.zoomY - 6;
+    const timeScale = slowMotion ? Math.max(0.2, Math.abs(stage.zoomY - focusY) / 5) : 1;
+    physics.step(STEP * timeScale);
     elapsed += STEP;
 
     while (removals.length && removals[0].time <= elapsed) {
@@ -78,10 +93,19 @@ async function race(seed: number, n: number, mapIndex: number, policy: Policy): 
       else leaderDistance = Math.min(leaderDistance, d);
     }
 
-    // 진행도 차이가 임계값을 넘을 때만 작은 충격량을 주며, 속도나 결승 결과는 강제하지 않는다.
+    const targetRank = rankedNow.findIndex((m) => m.id === target) + 1;
+    const rankBehind = targetRank >= 2;
+    const shouldTrigger =
+      policy.mode === 'slowmo' ? slowMotion :
+      policy.mode === 'rank' ? rankBehind :
+      policy.mode === 'both' ? slowMotion && rankBehind : false;
+
+    // A: 슬로우모션 구간, B: 목표 구슬 2위 이하, C: 두 조건 동시.
+    // 목표 구슬에만 작은 전진 충격을 주며 다른 구슬의 속도/결과는 조작하지 않는다.
     if (
       policy.impulse > 0 &&
       alive.has(target) &&
+      shouldTrigger &&
       Number.isFinite(targetDistance) &&
       Number.isFinite(leaderDistance) &&
       targetDistance > leaderDistance + policy.gap &&
@@ -112,15 +136,10 @@ async function main() {
   const n = Math.max(2, Number(process.argv[3] ?? 5));
   const mapIndex = 0; // Wheel of fortune 전용 실험
   const policies: Policy[] = [
-    { label: '무보정 기준', gap: 0, impulse: 0, cooldown: 0, maxAssists: 0 },
-    { label: '기존 최상위(다빈도)', gap: 1.5, impulse: 0.2, cooldown: 0.3, maxAssists: 24 },
-    { label: '약한 충격·최대 8회', gap: 1.5, impulse: 0.1, cooldown: 0.8, maxAssists: 8 },
-    { label: '중간 충격·최대 4회', gap: 1.5, impulse: 0.2, cooldown: 0.8, maxAssists: 4 },
-    { label: '중간 충격·최대 8회', gap: 1.5, impulse: 0.2, cooldown: 0.8, maxAssists: 8 },
-    { label: '중간 충격·최대 12회', gap: 1.5, impulse: 0.2, cooldown: 0.8, maxAssists: 12 },
-    { label: '중간 충격·긴 간격', gap: 1.5, impulse: 0.2, cooldown: 1.5, maxAssists: 8 },
-    { label: '조금 늦게 개입', gap: 2.0, impulse: 0.2, cooldown: 0.8, maxAssists: 8 },
-    { label: '일찍 개입·소량', gap: 1.0, impulse: 0.1, cooldown: 0.8, maxAssists: 8 },
+    { label: '무보정 기준', mode: 'none', gap: 0, impulse: 0, cooldown: 0, maxAssists: 0 },
+    { label: 'A 슬로우모션 구간', mode: 'slowmo', gap: 1.0, impulse: 0.16, cooldown: 0.8, maxAssists: 8 },
+    { label: 'B 2위 이하 스킬', mode: 'rank', gap: 1.0, impulse: 0.16, cooldown: 0.8, maxAssists: 8 },
+    { label: 'C 두 조건 결합', mode: 'both', gap: 1.0, impulse: 0.16, cooldown: 0.8, maxAssists: 8 },
   ];
 
   console.log(`맵: ${stages[mapIndex].title} / 참가: ${n} / 조건별 반복: ${trials}`);
