@@ -279,16 +279,14 @@ export class Roulette extends EventTarget {
             this._testChaseLastAssist = this._testChaseElapsed;
           }
 
-          // 첫 참가자보다 앞서 있는 후순위 참가자는 구슬별 최대 8회, 회당 5% 감속한다.
+          // 첫 참가자보다 앞서 있든 뒤에 있든, 나머지 모든 구슬을 구슬별 최대 8회·회당 5% 감속한다.
           for (const marble of this._marbles) {
             if (marble.id === target.id) continue;
             const assists = this._testSlowdownAssists.get(marble.id) ?? 0;
             if (assists >= 8) continue;
-            if (progress.distanceAt(marble.x, marble.y) < targetDistance - 0.25) {
-              this.physics.adjustMarbleSpeed(marble.id, 0.95);
-              this._testSlowdownAssists.set(marble.id, assists + 1);
-              this._testChaseLastAssist = this._testChaseElapsed;
-            }
+            this.physics.adjustMarbleSpeed(marble.id, 0.95);
+            this._testSlowdownAssists.set(marble.id, assists + 1);
+            this._testChaseLastAssist = this._testChaseElapsed;
           }
         }
       }
