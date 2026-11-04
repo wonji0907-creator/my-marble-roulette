@@ -33,7 +33,7 @@ class NodePhysics extends Box2dPhysics {
   }
 }
 
-type Policy = { label: string; mode: 'none' | 'target-speed' | 'leader-slow' | 'combined' | 'recovery-drop' | 'recovery-reversal' | 'recovery-both'; gap: number; targetFactor: number; rivalFactor: number; cooldown: number; maxAssists: number };
+type Policy = { label: string; mode: 'none' | 'target-speed' | 'leader-slow' | 'combined'; gap: number; targetFactor: number; rivalFactor: number; cooldown: number; maxAssists: number; startImpulse: number };
 type Outcome = { winner: number | null; targetWon: boolean; assists: number; seconds: number };
 
 async function race(seed: number, n: number, mapIndex: number, policy: Policy): Promise<Outcome> {
@@ -52,6 +52,8 @@ async function race(seed: number, n: number, mapIndex: number, policy: Policy): 
   }
   const target = Math.floor(Math.random() * n);
   physics.start();
+  // 시작 개입은 테스트 정책에서만 실행. 양의 Y 방향은 이 맵의 목표 방향이다.
+  if (policy.startImpulse > 0) physics.boostMarble(target, policy.startImpulse);
 
   const alive = new Set(Array.from({ length: n }, (_, i) => i));
   const removals: { id: number; time: number }[] = [];
@@ -100,28 +102,6 @@ async function race(seed: number, n: number, mapIndex: number, policy: Policy): 
     const rankBehind = targetRank >= 2;
     const shouldTrigger = policy.mode !== 'none' && rankBehind;
 
-    // Event-aware recovery is limited to the final 20% of the track.
-    // It changes only the target's speed magnitude; Box2D still decides all contacts and finish order.
-    if (alive.has(target) && rankBehind && targetDistance <= progress.maxDist * 0.2 &&
-        elapsed - lastAssist >= policy.cooldown && assists < policy.maxAssists) {
-      const telemetry = physics.getMarbleTelemetry(target);
-      if (telemetry) {
-        const sharpDrop = previousTargetSpeed > 1.5 && telemetry.speed < previousTargetSpeed * 0.65;
-        const reversal = previousTargetSpeed > 0.8 &&
-          previousTargetVx * telemetry.vx + previousTargetVy * telemetry.vy < 0;
-        const triggerDrop = policy.mode === 'recovery-drop' || policy.mode === 'recovery-both';
-        const triggerReversal = policy.mode === 'recovery-reversal' || policy.mode === 'recovery-both';
-        if ((triggerDrop && sharpDrop) || (triggerReversal && reversal)) {
-          physics.adjustMarbleSpeed(target, policy.targetFactor);
-          lastAssist = elapsed;
-          assists++;
-        }
-        previousTargetSpeed = telemetry.speed;
-        previousTargetVx = telemetry.vx;
-        previousTargetVy = telemetry.vy;
-      }
-    }
-
     // 목표 구슬이 뒤처졌을 때만 속도 크기를 미세 조정한다.
     // 진행 방향(속도 벡터)은 유지하고, 실제 결승 통과 순서는 물리 시뮬레이션에 맡긴다.
     if (
@@ -162,14 +142,16 @@ async function main() {
   const n = Math.max(2, Number(process.argv[3] ?? 5));
   const mapIndex = 0; // Wheel of fortune 전용 실험
   const policies: Policy[] = [
-    { label: '무보정 기준', mode: 'none', gap: 0, targetFactor: 1, rivalFactor: 1, cooldown: 0, maxAssists: 0 },
-    { label: 'A 목표 구슬 초미세 가속', mode: 'target-speed', gap: 0.5, targetFactor: 1.0015, rivalFactor: 1, cooldown: 0.35, maxAssists: 12 },
-    { label: 'B 선두만 초미세 감속', mode: 'leader-slow', gap: 0.5, targetFactor: 1, rivalFactor: 0.999, cooldown: 0.5, maxAssists: 12 },
-    { label: 'C 두 방식 결합', mode: 'combined', gap: 0.5, targetFactor: 1.001, rivalFactor: 0.9995, cooldown: 0.4, maxAssists: 12 },
-    { label: 'D 더 늦게 개입하는 가속', mode: 'target-speed', gap: 1.5, targetFactor: 1.002, rivalFactor: 1, cooldown: 0.6, maxAssists: 8 },
-    { label: 'E 마지막 구간 급감속 회복', mode: 'recovery-drop', gap: 0, targetFactor: 1.015, rivalFactor: 1, cooldown: 0.5, maxAssists: 3 },
-    { label: 'F 마지막 구간 방향 반전 회복', mode: 'recovery-reversal', gap: 0, targetFactor: 1.02, rivalFactor: 1, cooldown: 0.5, maxAssists: 3 },
-    { label: 'G 급감속+방향 반전 회복', mode: 'recovery-both', gap: 0, targetFactor: 1.015, rivalFactor: 1, cooldown: 0.5, maxAssists: 3 },
+    { label: '기준선', mode: 'none', gap: 0, targetFactor: 1, rivalFactor: 1, cooldown: 0, maxAssists: 0, startImpulse: 0 },
+    { label: 'A 강한 출발 +0.8', mode: 'none', gap: 0, targetFactor: 1, rivalFactor: 1, cooldown: 0, maxAssists: 0, startImpulse: 0.8 },
+    { label: 'B 매우 강한 출발 +2.0', mode: 'none', gap: 0, targetFactor: 1, rivalFactor: 1, cooldown: 0, maxAssists: 0, startImpulse: 2.0 },
+    { label: 'C 강한 추격 가속 ×1.06', mode: 'target-speed', gap: 0.25, targetFactor: 1.06, rivalFactor: 1, cooldown: 0.5, maxAssists: 12, startImpulse: 0 },
+    { label: 'D 초강한 추격 가속 ×1.12', mode: 'target-speed', gap: 0.25, targetFactor: 1.12, rivalFactor: 1, cooldown: 0.5, maxAssists: 12, startImpulse: 0 },
+    { label: 'E 선두 감속 ×0.90', mode: 'leader-slow', gap: 0.25, targetFactor: 1, rivalFactor: 0.90, cooldown: 0.5, maxAssists: 12, startImpulse: 0 },
+    { label: 'F 초강한 선두 감속 ×0.80', mode: 'leader-slow', gap: 0.25, targetFactor: 1, rivalFactor: 0.80, cooldown: 0.5, maxAssists: 12, startImpulse: 0 },
+    { label: 'G 추격+선두 동시 개입', mode: 'combined', gap: 0.25, targetFactor: 1.06, rivalFactor: 0.90, cooldown: 0.5, maxAssists: 12, startImpulse: 0 },
+    { label: 'H 강한 출발+추격', mode: 'target-speed', gap: 0.25, targetFactor: 1.06, rivalFactor: 1, cooldown: 0.5, maxAssists: 12, startImpulse: 0.8 },
+    { label: 'I 강한 출발+복합 개입', mode: 'combined', gap: 0.25, targetFactor: 1.06, rivalFactor: 0.90, cooldown: 0.5, maxAssists: 12, startImpulse: 0.8 },
   ];
 
   console.log(`맵: ${stages[mapIndex].title} / 참가: ${n} / 조건별 반복: ${trials}`);
