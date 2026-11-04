@@ -1,12 +1,6 @@
 name: Event-aware recovery experiment
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'scripts/winrate.ts'
-      - 'src/physics-box2d.ts'
-      - '.github/workflows/winrate-experiment.yml'
-      - 'package.json'
 jobs:
   winrate:
     runs-on: ubuntu-latest
