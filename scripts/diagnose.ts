@@ -102,6 +102,8 @@ async function runRace(seed: number, n: number) {
   const rows = Math.ceil(n / 10);
   const lineDelta = -Math.max(0, Math.ceil(rows - 5));
   for (let id = 0; id < n; id++) physics.createMarble(id, 10.25 + (id % 10) * 0.6, rows - Math.floor(id / 10) + lineDelta);
+  const startDistances = new Map<number, number>();
+  for (let id = 0; id < n; id++) { const p = physics.getMarblePosition(id); startDistances.set(id, progress.distanceAt(p.x, p.y)); }
   const target = Math.floor(Math.random() * n);
   physics.start();
 
@@ -135,7 +137,8 @@ async function runRace(seed: number, n: number) {
         if (!t) continue;
         const s: Snapshot = { ...t, distance: progress.distanceAt(t.x, t.y) };
         addSample(metrics[id], s, previous.get(id));
-        const progressPct = Math.max(0, Math.min(0.999999, 1 - s.distance / progress.maxDist));
+        const startDistance = startDistances.get(id) ?? progress.maxDist;
+        const progressPct = Math.max(0, Math.min(0.999999, 1 - s.distance / startDistance));
         const segment = Math.floor(progressPct * 5);
         addSample(segmentMetrics[id][segment], s, previous.get(id));
         previous.set(id, s);
@@ -175,7 +178,6 @@ async function main() {
         : (id === r.winner ? groups.otherWinners : groups.otherMarbles);
       const source = r.metrics[id];
       addRaceSummary(bucket, source);
-      addRaceSummary(id === r.target ? segmentGroups[0].target : segmentGroups[0].rivals, freshMetrics());
       for (let segment = 0; segment < 5; segment++) {
         addRaceSummary(id === r.target ? segmentGroups[segment].target : segmentGroups[segment].rivals, r.segmentMetrics[id][segment]);
       }
@@ -196,7 +198,7 @@ async function main() {
       report('other marble wins', groups.otherWinners),
       report('other marbles lose', groups.otherMarbles),
     ],
-    note: 'Read-only telemetry. Progress segments use distanceAt/maxDist. Each race contributes one equally weighted per-marble summary. Contact is sampled every 0.05s, so brief contacts may be missed. Finish detection remains sampled and approximate; this is not a causal intervention test.'
+    note: 'Read-only telemetry. Progress segments normalize remaining distance against each marble's actual starting distance. Each race contributes one equally weighted per-marble summary. Contact is sampled every 0.05s, so brief contacts may be missed. Finish detection remains sampled and approximate; this is not a causal intervention test.'
   };
   console.log(JSON.stringify(result, null, 2));
 }
