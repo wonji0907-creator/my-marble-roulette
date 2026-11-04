@@ -70,8 +70,9 @@ export class Roulette extends EventTarget {
   private _isRunning: boolean = false;
   /** 진행 중에는 null, 당첨자가 모두 확정되면 당첨자 배열 */
   private _result: Marble[] | null = null;
-  /** 테스트 모드에서 결과창에 지정할 참가자 이름. null이면 일반 무작위 결과 */
+  /** 테스트 모드에서 실제 1등으로 통과시킬 구슬 */
   private _testWinnerName: string | null = null;
+  private _testWinnerMarbleId: number | null = null;
 
   // 구슬 id(= order)는 매 라운드 재사용된다. 리셋 시 취소하지 않으면 이 타이머가
   // 뒤늦게 발화해 같은 id를 가진 새 라운드의 구슬을 지워버린다
@@ -240,6 +241,15 @@ export class Roulette extends EventTarget {
         this._effects.push(new SkillEffect(marble.x, marble.y));
         this.physics.impact(marble.id);
       }
+      // 테스트 모드에서는 지정 구슬 외의 구슬을 결승선 직전에서 부드럽게 대기시킨다.
+      // 물리 바디를 비활성화해 충돌을 막으므로 지정 구슬의 진행을 방해하지 않는다.
+      if (
+        this._testWinnerMarbleId !== null &&
+        marble.id !== this._testWinnerMarbleId &&
+        marble.y >= this._stage.goalY - 1.5
+      ) {
+        this.physics.holdMarble(marble.id);
+      }
       if (marble.y > this._stage.goalY) {
         this._winners.push(marble);
         if (this._isRunning && this._isWinningRank(this._winners.length - 1)) {
@@ -301,11 +311,8 @@ export class Roulette extends EventTarget {
       this._particleManager.shot(this._renderer.width, this._renderer.height);
     }
 
-    const designatedWinner = this._testWinnerName
-      ? [...this._winners, ...this._marbles].find((marble) => marble.name === this._testWinnerName)
-      : undefined;
-    // 테스트 모드는 결과창에 지정 결과를 표시한다. 물리 시뮬레이션 자체는 변경하지 않는다.
-    this._result = designatedWinner ? [designatedWinner] : ranked.slice(start, end + 1);
+    // 테스트 모드에서도 실제로 결승선을 통과한 구슬을 결과로 사용한다.
+    this._result = ranked.slice(start, end + 1);
     this._isRunning = false;
     this.dispatchEvent(
       new CustomEvent('goal', {
@@ -542,9 +549,12 @@ export class Roulette extends EventTarget {
     return this._speed;
   }
 
-  /** 테스트 모드 결과창에 표시할 참가자. null이면 실제 레이스 결과를 사용한다. */
+  /** 테스트 모드에서 실제 1등으로 통과시킬 참가자를 지정한다. */
   public setTestWinner(name: string | null) {
     this._testWinnerName = name;
+    this._testWinnerMarbleId = name
+      ? this._marbles.find((marble) => marble.name === name)?.id ?? null
+      : null;
   }
 
   public setWinningRank(rank: number) {
@@ -606,6 +616,11 @@ export class Roulette extends EventTarget {
         }
       }
     });
+
+    // 참가자 구슬 생성 이후 지정 이름에 해당하는 실제 구슬 ID를 연결한다.
+    this._testWinnerMarbleId = this._testWinnerName
+      ? this._marbles.find((marble) => marble.name === this._testWinnerName)?.id ?? null
+      : null;
 
     // 카메라를 구슬 생성 위치 중앙으로 이동 + 줌인
     if (totalCount > 0) {
