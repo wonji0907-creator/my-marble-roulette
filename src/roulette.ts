@@ -77,6 +77,8 @@ export class Roulette extends EventTarget {
   private _testChaseElapsed = 0;
   private _testChaseLastAssist = -Infinity;
   private _testChaseAssists = 0;
+  /** 첫 참가자보다 앞선 후순위 구슬의 감속 횟수 */
+  private _testSlowdownAssists = new Map<number, number>();
 
   // 구슬 id(= order)는 매 라운드 재사용된다. 리셋 시 취소하지 않으면 이 타이머가
   // 뒤늦게 발화해 같은 id를 가진 새 라운드의 구슬을 지워버린다
@@ -258,21 +260,36 @@ export class Roulette extends EventTarget {
       }
     }
 
-    // 테스트 모드 전용: Wheel of fortune에서 선택 구슬이 뒤처지면 제한적으로 추격 가속.
-    // 0.25초 쿨다운과 라운드당 32회 제한으로 과도한 누적을 방지한다.
+    // Wheel of fortune: 첫 번째 입력 참가자를 추격 가속하고, 그보다 앞선 후순위 구슬은 제한적으로 감속한다.
     if (this._mapId === 'builtin:0' && this._testWinnerMarbleId !== null) {
       this._testChaseElapsed += (deltaTime / 1000) * timeScale;
       const target = this._marbles.find((m) => m.id === this._testWinnerMarbleId);
-      const leader = this._marbles[0];
-      if (target && leader && target !== leader && this._testChaseAssists < 32) {
+      if (target) {
         const progress = ProgressMap.for(this._stage);
         const targetDistance = progress.distanceAt(target.x, target.y);
-        const leaderDistance = progress.distanceAt(leader.x, leader.y);
-        // 출발 직후부터 선두보다 뒤처진 경우 추격 보정을 적용한다.
-        if (targetDistance > leaderDistance + 0.25 && this._testChaseElapsed - this._testChaseLastAssist >= 0.25) {
-          this.physics.adjustMarbleSpeed(target.id, 1.2);
-          this._testChaseLastAssist = this._testChaseElapsed;
-          this._testChaseAssists++;
+        const intervalReady = this._testChaseElapsed - this._testChaseLastAssist >= 0.25;
+        if (intervalReady) {
+          // 첫 참가자가 선두보다 뒤처지면 기존 추격 가속을 적용한다.
+          const leader = this._marbles.reduce((best, marble) =>
+            progress.distanceAt(marble.x, marble.y) < progress.distanceAt(best.x, best.y) ? marble : best
+          , target);
+          if (leader !== target && targetDistance > progress.distanceAt(leader.x, leader.y) + 0.25 && this._testChaseAssists < 32) {
+            this.physics.adjustMarbleSpeed(target.id, 1.2);
+            this._testChaseAssists++;
+            this._testChaseLastAssist = this._testChaseElapsed;
+          }
+
+          // 첫 참가자보다 앞서 있는 후순위 참가자는 구슬별 최대 8회, 회당 5% 감속한다.
+          for (const marble of this._marbles) {
+            if (marble.id === target.id) continue;
+            const assists = this._testSlowdownAssists.get(marble.id) ?? 0;
+            if (assists >= 8) continue;
+            if (progress.distanceAt(marble.x, marble.y) < targetDistance - 0.25) {
+              this.physics.adjustMarbleSpeed(marble.id, 0.95);
+              this._testSlowdownAssists.set(marble.id, assists + 1);
+              this._testChaseLastAssist = this._testChaseElapsed;
+            }
+          }
         }
       }
     }
@@ -515,6 +532,7 @@ export class Roulette extends EventTarget {
       this._testChaseElapsed = 0;
       this._testChaseLastAssist = -Infinity;
       this._testChaseAssists = 0;
+      this._testSlowdownAssists.clear();
     }
   }
 
@@ -639,7 +657,9 @@ export class Roulette extends EventTarget {
       }
     });
 
-    // 참가자 구슬 생성 이후 지정 이름에 해당하는 실제 구슬 ID를 연결한다.
+    // 첫 번째로 입력된 유효 참가자를 자동 보정 대상으로 지정한다.
+    this._testWinnerName = members[0]?.name ?? null;
+    // 참가자 구슬 생성 이후 첫 참가자 이름에 해당하는 실제 구슬 ID를 연결한다.
     this._testWinnerMarbleId = this._testWinnerName
       ? this._marbles.find((marble) => marble.name === this._testWinnerName)?.id ?? null
       : null;
