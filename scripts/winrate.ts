@@ -63,7 +63,7 @@ async function race(seed: number, n: number, skillEnabled: boolean): Promise<Out
   const rows = Math.ceil(n / 10);
   const lineDelta = -Math.max(0, Math.ceil(rows - 5));
   const cooldowns = new Map<number, number>();
-  const maxCooldown = 4600; // 기본 weight 0.1일 때 Marble 생성자와 동일
+  const maxCooldown = 1000; // 기본 weight 1일 때 Marble 생성자와 동일
   const participantIds: number[] = [];
   for (let participant = 0; participant < n; participant++) {
     const id = orders.pop() ?? 0;
@@ -119,11 +119,11 @@ async function race(seed: number, n: number, skillEnabled: boolean): Promise<Out
     }
 
     // 일반 스킬(useSkills=true)도 OFF/ON 양쪽에서 동일하게 유지한다.
-    // Marble.update()와 같은 벽시계 기준 쿨타임 및 발동 확률(weight 0.1 → 2%).
+    // Marble.update()와 같은 벽시계 기준 쿨타임 및 발동 확률(weight 1 → 20%).
     for (const id of activeOrder) {
       const next = (cooldowns.get(id) ?? 0) - STEP * 1000;
       if (next <= 0) {
-        if (Math.random() < 0.02) physics.impact(id);
+        if (Math.random() < 0.2) physics.impact(id);
         cooldowns.set(id, maxCooldown);
       } else {
         cooldowns.set(id, next);
