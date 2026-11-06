@@ -530,6 +530,7 @@ export class Roulette extends EventTarget {
       this._testChaseElapsed = 0;
       this._testChaseLastAssist = -Infinity;
       this._testChaseAssists = 0;
+      this._testLastChanceSkillUsed = false;
       this._testSlowdownAssists.clear();
     }
   }
