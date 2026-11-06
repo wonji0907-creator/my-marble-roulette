@@ -265,13 +265,13 @@ export class Roulette extends EventTarget {
     // Wheel of fortune: 지정 구슬이 1등이 아닐 때, 어떤 구슬이든 결승 직전 하단 구간에 들어오면 지정 구슬의 충격 스킬을 1회 발동한다.
     if (this._mapId === 'builtin:0' && this._testWinnerMarbleId !== null && !this._testLastChanceSkillUsed) {
       const designated = this._marbles.find((marble) => marble.id === this._testWinnerMarbleId);
-      const bottomReached = this._marbles.some((marble) => marble.y >= stage.goalY - 5);
+      const bottomReached = this._marbles.some((marble) => marble.y >= this._stage!.goalY - 5);
       if (designated && bottomReached) {
         const designatedAlreadyWon = this._winners.length > 0 && this._winners[0].id === designated.id;
         const designatedIsFirst = this._winners.length > 0
           ? designatedAlreadyWon
           : [...this._marbles].sort((a, b) =>
-              ProgressMap.for(stage).distanceAt(a.x, a.y) - ProgressMap.for(stage).distanceAt(b.x, b.y)
+              ProgressMap.for(this._stage!).distanceAt(a.x, a.y) - ProgressMap.for(this._stage!).distanceAt(b.x, b.y)
             )[0]?.id === designated.id;
 
         if (!designatedIsFirst) {
