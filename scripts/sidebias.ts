@@ -33,7 +33,7 @@ class NodePhysics extends Box2dPhysics {
 }
 
 type Side = 'left' | 'right' | 'center' | 'no-contact';
-type MarbleResult = { side: Side; first: boolean; contactX: number | null };
+type MarbleResult = { side: Side; first: boolean; contactX: number | null; phase: string | null; preVx: number | null; preVy: number | null };
 
 async function race(seed: number, n: number): Promise<MarbleResult[]> {
   seedRandom(seed);
@@ -60,7 +60,7 @@ async function race(seed: number, n: number): Promise<MarbleResult[]> {
   const obstacleBody = internal.entities[obstacleIndex].body;
   const getPointer = internal.Box2D.getPointer;
   const sides: (Side | null)[] = Array(n).fill(null);
-  const contactXs: (number | null)[] = Array(n).fill(null);
+  const contactXs: (number | null)[] = Array(n).fill(null);\n  const phases: (string | null)[] = Array(n).fill(null);\n  const preVxs: (number | null)[] = Array(n).fill(null);\n  const preVys: (number | null)[] = Array(n).fill(null);
   const alive = new Set(Array.from({ length: n }, (_, i) => i));
   const finishOrder: number[] = [];
   const removals: { id: number; time: number }[] = [];
@@ -122,13 +122,13 @@ async function main() {
     center: { marbles: 0, wins: 0 },
     'no-contact': { marbles: 0, wins: 0 },
   };
-  let completed = 0;
+  let completed = 0;\n  const resultsByPhase: Record<string, { marbles: number; wins: number }> = Object.fromEntries(['0-90°', '90-180°', '180-270°', '270-360°'].map(p => [p, { marbles: 0, wins: 0 }]));
   for (let i = 0; i < trials; i++) {
     const results = await race(20261106 + i, n);
     if (results.some(r => r.first)) completed++;
     for (const r of results) {
       totals[r.side].marbles++;
-      if (r.first) totals[r.side].wins++;
+      if (r.first) totals[r.side].wins++;\n      if (r.phase) { resultsByPhase[r.phase].marbles++; if (r.first) resultsByPhase[r.phase].wins++; }
     }
   }
 
@@ -140,7 +140,7 @@ async function main() {
     const v = totals[side];
     console.log(`| ${side} | ${v.marbles} | ${v.wins} | ${v.marbles ? (v.wins / v.marbles * 100).toFixed(2) : '0.00'}% |`);
   }
-  console.log('주의: 이 수치는 마지막 막대와 실제 접촉한 쪽의 상관관계이며, 어느 쪽이 승리를 유발한다고 단정하지 않습니다.');
+  console.log('');\n  console.log('| 장애물 각도 구간(첫 접촉 순간) | 접촉 구슬 수 | 1등 | 구간 내 1등 비율 |');\n  console.log('|---|---:|---:|---:|');\n  for (const phase of ['0-90°', '90-180°', '180-270°', '270-360°']) {\n    const group = resultsByPhase[phase];\n    console.log(`| ${phase} | ${group.marbles} | ${group.wins} | ${group.marbles ? (group.wins / group.marbles * 100).toFixed(2) : '0.00'}% |`);\n  }\n  console.log('');\n  console.log('| 접촉 여부 | 구슬 수 | 1등 | 해당 그룹의 1등 비율 |');\n  console.log('|---|---:|---:|---:|');\n  const contacted = ['left', 'right', 'center'].reduce((a, s) => ({ marbles: a.marbles + totals[s as Side].marbles, wins: a.wins + totals[s as Side].wins }), { marbles: 0, wins: 0 });\n  console.log(`| contact | ${contacted.marbles} | ${contacted.wins} | ${(contacted.wins / contacted.marbles * 100).toFixed(2)}% |`);\n  console.log(`| no-contact | ${totals['no-contact'].marbles} | ${totals['no-contact'].wins} | ${(totals['no-contact'].wins / totals['no-contact'].marbles * 100).toFixed(2)}% |`);\n  console.log('주의: 각도 구간은 장애물의 월드 각도 기준이며, 접촉/각도와 승리의 상관관계만 측정합니다.');
 }
 
 main().catch(error => { console.error(error); process.exitCode = 1; });
