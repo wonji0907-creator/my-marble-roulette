@@ -64,15 +64,17 @@ async function race(seed: number, n: number, skillEnabled: boolean): Promise<Out
   const lineDelta = -Math.max(0, Math.ceil(rows - 5));
   const cooldowns = new Map<number, number>();
   const maxCooldown = 4600; // 기본 weight 0.1일 때 Marble 생성자와 동일
+  const participantIds: number[] = [];
   for (let participant = 0; participant < n; participant++) {
     const id = orders.pop() ?? 0;
+    participantIds.push(id);
     cooldowns.set(id, maxCooldown * Math.random()); // Marble 생성자의 초기 쿨타임 난수
     const line = Math.floor(id / 10);
     // createMarble 내부의 질량 난수까지 실제 생성 순서대로 소비한다.
     physics.createMarble(id, 10.25 + (id % 10) * 0.6, rows - line + lineDelta);
   }
 
-  const activeOrder = Array.from({ length: n }, (_, i) => i);
+  const activeOrder = participantIds.slice();
   // activeOrder는 화면의 _marbles 배열처럼 결승선을 통과한 구슬을 즉시 제외한다.
   const removals: { id: number; time: number }[] = [];
   const finishOrder: number[] = [];
