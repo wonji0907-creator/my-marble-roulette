@@ -125,6 +125,23 @@ async function race(seed: number, n: number, skillEnabled: boolean): Promise<Out
     // 일반 스킬(useSkills=true)도 OFF/ON 양쪽에서 동일하게 유지한다.
     // Marble.update()와 같은 벽시계 기준 쿨타임 및 발동 확률(weight 0.1 → 2%).
     for (const id of activeOrder) {
+      // Marble.update()의 정지 워치독: 초기 lastPosition=(0,0), 벽시계 누적 10ms.
+      const position = physics.getMarblePosition(id);
+      const previous = lastPositions.get(id) ?? { x: 0, y: 0 };
+      const movedSq = (position.x - previous.x) ** 2 + (position.y - previous.y) ** 2;
+      if (movedSq < 0.00001 * timeScale * timeScale) {
+        const stuck = (stuckTimes.get(id) ?? 0) + 10;
+        if (stuck > STUCK_DELAY) {
+          physics.shakeMarble(id);
+          stuckTimes.set(id, 0);
+        } else {
+          stuckTimes.set(id, stuck);
+        }
+      } else {
+        stuckTimes.set(id, 0);
+      }
+      lastPositions.set(id, { x: position.x, y: position.y });
+
       const next = (cooldowns.get(id) ?? 0) - STEP * 1000;
       if (next <= 0) {
         if (Math.random() < 0.02) physics.impact(id);
