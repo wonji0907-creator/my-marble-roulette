@@ -7,7 +7,7 @@ import Box2DFactory from 'box2d-wasm';
 import { stages } from '../src/data/maps';
 import { ProgressMap } from '../src/progressMap';
 import { Box2dPhysics } from '../src/physics-box2d';
-import { zoomThreshold } from '../src/data/constants';
+import { STUCK_DELAY, zoomThreshold } from '../src/data/constants';
 import { zoomZoneIntensity } from '../src/zoomZone';
 
 const STEP = 0.01;
@@ -63,12 +63,16 @@ async function race(seed: number, n: number, skillEnabled: boolean): Promise<Out
   const rows = Math.ceil(n / 10);
   const lineDelta = -Math.max(0, Math.ceil(rows - 5));
   const cooldowns = new Map<number, number>();
+  const lastPositions = new Map<number, { x: number; y: number }>();
+  const stuckTimes = new Map<number, number>();
   const maxCooldown = 4600; // setMarbles()가 기본 참가자 weight를 0.1로 정규화
   const participantIds: number[] = [];
   for (let participant = 0; participant < n; participant++) {
     const id = orders.pop() ?? 0;
     participantIds.push(id);
     cooldowns.set(id, maxCooldown * Math.random()); // Marble 생성자의 초기 쿨타임 난수
+    lastPositions.set(id, { x: 0, y: 0 }); // Marble.lastPosition 초기값
+    stuckTimes.set(id, 0);
     const line = Math.floor(id / 10);
     // createMarble 내부의 질량 난수까지 실제 생성 순서대로 소비한다.
     physics.createMarble(id, 10.25 + (id % 10) * 0.6, rows - line + lineDelta);
