@@ -1,7 +1,6 @@
 /**
- * 지정 구슬 실제 우승률 실험기.
- * npm run winrate -- [trials=100] [marbles=5]
- * 모든 정책은 동일한 시드 목록으로 비교한다.
+ * Wheel of fortune: 게임의 현재 추격 보정과 하단 도달 스킬 조건을 그대로 재현하는 실험기.
+ * npm run winrate -- [trials=500] [marbles=5]
  */
 import * as fs from 'node:fs';
 import Box2DFactory from 'box2d-wasm';
@@ -33,12 +32,18 @@ class NodePhysics extends Box2dPhysics {
   }
 }
 
-type Policy = { label: string; mode: 'none' | 'target-speed' | 'leader-slow' | 'combined'; gap: number; targetFactor: number; rivalFactor: number; cooldown: number; maxAssists: number; startImpulse: number };
-type Outcome = { first: boolean; second: boolean; assists: number; slowdowns: number; seconds: number };
+type Outcome = {
+  first: boolean;
+  second: boolean;
+  skillTriggered: boolean;
+  assists: number;
+  slowdowns: number;
+  seconds: number;
+};
 
-async function race(seed: number, n: number, mapIndex: number, policy: Policy): Promise<Outcome> {
+async function race(seed: number, n: number): Promise<Outcome> {
   seedRandom(seed);
-  const stage = stages[mapIndex];
+  const stage = stages[0];
   const progress = ProgressMap.for(stage);
   const physics = new NodePhysics();
   await physics.init();
@@ -50,23 +55,21 @@ async function race(seed: number, n: number, mapIndex: number, policy: Policy): 
     const line = Math.floor(id / 10);
     physics.createMarble(id, 10.25 + (id % 10) * 0.6, rows - line + lineDelta);
   }
-  const target = 0; // 실제 입력 순서 첫 번째 참가자
-  physics.start();
-  // 시작 개입은 테스트 정책에서만 실행. 양의 Y 방향은 이 맵의 목표 방향이다.
-  if (policy.startImpulse > 0) physics.boostMarble(target, policy.startImpulse);
 
+  const target = 0;
+  physics.start();
   const alive = new Set(Array.from({ length: n }, (_, i) => i));
   const removals: { id: number; time: number }[] = [];
+  const finishOrder: number[] = [];
+  const slowdownCounts = new Map<number, number>();
   let elapsed = 0;
-  let lastAssist = -policy.cooldown;
+  let chaseElapsed = 0;
+  let lastAssist = -Infinity;
   let assists = 0;
   let slowdowns = 0;
-  let lastChanceSkillUsed = false;
-  const slowdownCounts = new Map<number, number>();
-  const finishOrder: number[] = [];
+  let skillTriggered = false;
 
   while (alive.size && elapsed < MAX_SECONDS) {
-    // 실제 게임처럼 슬로우모션 구간에서는 물리 시간만 느리게 진행한다.
     const rankedNow = [...alive].map((id) => {
       const p = physics.getMarblePosition(id);
       return { id, d: progress.distanceAt(p.x, p.y), y: p.y };
@@ -81,100 +84,118 @@ async function race(seed: number, n: number, mapIndex: number, policy: Policy): 
       Math.abs(stage.zoomY - focusY) < 5 &&
       focusY > stage.zoomY - 6;
     const timeScale = slowMotion ? Math.max(0.2, Math.abs(stage.zoomY - focusY) / 5) : 1;
+
     physics.step(STEP * timeScale);
     elapsed += STEP;
+    chaseElapsed += STEP * timeScale;
 
     while (removals.length && removals[0].time <= elapsed) {
       physics.removeMarble(removals.shift()!.id);
     }
 
-    let targetDistance = Infinity;
-    let leaderDistance = Infinity;
-    for (const id of alive) {
+    // 이번 스텝에서 결승선을 통과한 구슬을 먼저 기록한다.
+    const crossed = [...alive].map((id) => {
       const p = physics.getMarblePosition(id);
-      if (p.y > stage.goalY) continue;
-      const d = progress.distanceAt(p.x, p.y);
-      if (id === target) targetDistance = d;
-      else leaderDistance = Math.min(leaderDistance, d);
+      return { id, y: p.y, d: progress.distanceAt(p.x, p.y) };
+    }).filter((m) => m.y > stage.goalY).sort((a, b) => a.d - b.d);
+    for (const marble of crossed) {
+      if (!finishOrder.includes(marble.id)) finishOrder.push(marble.id);
     }
 
-    // 실서비스와 동일하게: 첫 참가자가 결승까지 5 이내이고 3위 이하일 때 Impact 1회.
-    if (!lastChanceSkillUsed && alive.has(target) && Number.isFinite(targetDistance) && targetDistance <= 5) {
-      const currentRank = [...alive].map((id) => {
+    // 게임 코드와 동일: 지정 구슬이 1등이 아니고, 어느 구슬이든 goalY - 5에
+    // 도달하면 지정 구슬에 Impact를 단 한 번 적용한다.
+    if (!skillTriggered && alive.has(target)) {
+      const positions = [...alive].map((id) => {
+        const p = physics.getMarblePosition(id);
+        return { id, x: p.x, y: p.y, d: progress.distanceAt(p.x, p.y) };
+      });
+      const bottomReached = positions.some((m) => m.y >= stage.goalY - 5);
+      const designatedIsFirst = finishOrder.length > 0
+        ? finishOrder[0] === target
+        : positions.sort((a, b) => a.d - b.d)[0]?.id === target;
+
+      if (bottomReached && !designatedIsFirst) {
+        physics.impact(target);
+        skillTriggered = true;
+      }
+    }
+
+    // Wheel of fortune의 기존 추격 가속/상대 감속은 게임 코드의 수치와 주기를 유지한다.
+    const intervalReady = chaseElapsed - lastAssist >= 0.25;
+    if (alive.has(target) && intervalReady) {
+      const current = [...alive].map((id) => {
         const p = physics.getMarblePosition(id);
         return { id, d: progress.distanceAt(p.x, p.y) };
-      }).sort((a, b) => a.d - b.d).findIndex((entry) => entry.id === target);
-      if (currentRank >= 2) {
-        physics.impact(target);
-        lastChanceSkillUsed = true;
-      }
-    }
+      });
+      const targetDistance = current.find((m) => m.id === target)?.d ?? Infinity;
+      const leaderDistance = Math.min(...current.filter((m) => m.id !== target).map((m) => m.d));
 
-    const intervalReady = elapsed - lastAssist >= policy.cooldown;
-    if (alive.has(target) && policy.mode !== 'none' && intervalReady) {
       if (Number.isFinite(targetDistance) && Number.isFinite(leaderDistance) &&
-          targetDistance > leaderDistance + policy.gap && assists < policy.maxAssists) {
-        physics.adjustMarbleSpeed(target, policy.targetFactor);
+          targetDistance > leaderDistance + 0.25 && assists < 32) {
+        physics.adjustMarbleSpeed(target, 1.2);
         assists++;
-        lastAssist = elapsed;
+        lastAssist = chaseElapsed;
       }
 
-      // 실제 게임처럼 첫 참가자를 제외한 모든 구슬을 구슬별 최대 8회 감속한다.
       for (const id of alive) {
         if (id === target) continue;
         const count = slowdownCounts.get(id) ?? 0;
         if (count >= 8) continue;
-        physics.adjustMarbleSpeed(id, policy.rivalFactor);
+        physics.adjustMarbleSpeed(id, 0.95);
         slowdownCounts.set(id, count + 1);
         slowdowns++;
-        lastAssist = elapsed;
+        lastAssist = chaseElapsed;
       }
     }
 
-    for (const id of [...alive]) {
-      const p = physics.getMarblePosition(id);
-      if (p.y > stage.goalY) {
-        finishOrder.push(id);
-        alive.delete(id);
-        removals.push({ id, time: elapsed + 0.5 });
-      }
+    for (const id of crossed.map((m) => m.id)) {
+      alive.delete(id);
+      removals.push({ id, time: elapsed + 0.5 });
     }
     removals.sort((a, b) => a.time - b.time);
   }
 
-  return { first: finishOrder[0] === target, second: finishOrder[1] === target, assists, slowdowns, seconds: elapsed };
+  return {
+    first: finishOrder[0] === target,
+    second: finishOrder[1] === target,
+    skillTriggered,
+    assists,
+    slowdowns,
+    seconds: elapsed,
+  };
 }
 
 async function main() {
-  const trials = Math.max(1, Number(process.argv[2] ?? 100));
+  const trials = Math.max(1, Number(process.argv[2] ?? 500));
   const n = Math.max(2, Number(process.argv[3] ?? 5));
-  const mapIndex = 0; // Wheel of fortune 전용 실험
-  const policies: Policy[] = [
-    { label: '첫 입력 구슬 가속 + 나머지 전원 감속', mode: 'combined', gap: 0.25, targetFactor: 1.25, rivalFactor: 0.95, cooldown: 0.25, maxAssists: 32, startImpulse: 0 },
-  ];
+  let firstCount = 0;
+  let secondCount = 0;
+  let skillCount = 0;
+  let assistTotal = 0;
+  let slowdownTotal = 0;
+  let timeTotal = 0;
+  let completed = 0;
 
-  console.log(`맵: ${stages[mapIndex].title} / 참가: ${n} / 조건별 반복: ${trials}`);
-  console.log('| 보정 방식 | 1등 | 2등 | 평균 가속 | 평균 감속 | 평균 완주시간 |');
-  console.log('|---|---:|---:|---:|---:|---:|');
-
-  for (const policy of policies) {
-    let firstCount = 0;
-    let secondCount = 0;
-    let assistTotal = 0;
-    let slowdownTotal = 0;
-    let timeTotal = 0;
-    for (let i = 0; i < trials; i++) {
-      const result = await race(20261104 + i, n, mapIndex, policy);
-      if (result.first) firstCount++;
-      if (result.second) secondCount++;
-      assistTotal += result.assists;
-      slowdownTotal += result.slowdowns;
-      timeTotal += result.seconds;
-    }
-    console.log(
-      `| ${policy.label} | ${firstCount}/${trials} (${(firstCount / trials * 100).toFixed(1)}%) | ${secondCount}/${trials} (${(secondCount / trials * 100).toFixed(1)}%) | ${(assistTotal / trials).toFixed(1)} | ${(slowdownTotal / trials).toFixed(1)} | ${(timeTotal / trials).toFixed(1)}s |`
-    );
+  for (let i = 0; i < trials; i++) {
+    const result = await race(20261106 + i, n);
+    if (result.first || result.second) completed++;
+    if (result.first) firstCount++;
+    if (result.second) secondCount++;
+    if (result.skillTriggered) skillCount++;
+    assistTotal += result.assists;
+    slowdownTotal += result.slowdowns;
+    timeTotal += result.seconds;
   }
+
+  console.log(`맵: ${stages[0].title} / 참가: ${n} / 반복: ${trials} / 완주 레이스: ${completed}`);
+  console.log('| 항목 | 결과 |');
+  console.log('|---|---:|');
+  console.log(`| 지정 구슬 1등 | ${firstCount}/${trials} (${(firstCount / trials * 100).toFixed(1)}%) |`);
+  console.log(`| 지정 구슬 2등 | ${secondCount}/${trials} (${(secondCount / trials * 100).toFixed(1)}%) |`);
+  console.log(`| 하단 도달 스킬 발동 | ${skillCount}/${trials} (${(skillCount / trials * 100).toFixed(1)}%) |`);
+  console.log(`| 평균 추격 가속 횟수 | ${(assistTotal / trials).toFixed(1)} |`);
+  console.log(`| 평균 상대 감속 횟수 | ${(slowdownTotal / trials).toFixed(1)} |`);
+  console.log(`| 평균 완주 시간 | ${(timeTotal / trials).toFixed(1)}s |`);
 }
 
 main().catch((error) => {
