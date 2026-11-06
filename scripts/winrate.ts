@@ -61,6 +61,7 @@ async function race(seed: number, n: number, mapIndex: number, policy: Policy): 
   let lastAssist = -policy.cooldown;
   let assists = 0;
   let slowdowns = 0;
+  let lastChanceSkillUsed = false;
   const slowdownCounts = new Map<number, number>();
   const finishOrder: number[] = [];
 
@@ -95,6 +96,18 @@ async function race(seed: number, n: number, mapIndex: number, policy: Policy): 
       const d = progress.distanceAt(p.x, p.y);
       if (id === target) targetDistance = d;
       else leaderDistance = Math.min(leaderDistance, d);
+    }
+
+    // 실서비스와 동일하게: 첫 참가자가 결승까지 5 이내이고 3위 이하일 때 Impact 1회.
+    if (!lastChanceSkillUsed && alive.has(target) && Number.isFinite(targetDistance) && targetDistance <= 5) {
+      const currentRank = [...alive].map((id) => {
+        const p = physics.getMarblePosition(id);
+        return { id, d: progress.distanceAt(p.x, p.y) };
+      }).sort((a, b) => a.d - b.d).findIndex((entry) => entry.id === target);
+      if (currentRank >= 2) {
+        physics.impact(target);
+        lastChanceSkillUsed = true;
+      }
     }
 
     const intervalReady = elapsed - lastAssist >= policy.cooldown;
