@@ -77,6 +77,8 @@ export class Roulette extends EventTarget {
   private _testChaseElapsed = 0;
   private _testChaseLastAssist = -Infinity;
   private _testChaseAssists = 0;
+  /** 지정 구슬이 뒤처진 상태에서 하단 구간에 도달하면 발동하는 1회성 막판 충격 스킬 */
+  private _testLastChanceSkillUsed = false;
   /** 첫 참가자보다 앞선 후순위 구슬의 감속 횟수 */
   private _testSlowdownAssists = new Map<number, number>();
 
@@ -257,6 +259,26 @@ export class Roulette extends EventTarget {
             this.physics.removeMarble(marble.id);
           }, 500)
         );
+      }
+    }
+
+    // Wheel of fortune: 지정 구슬이 1등이 아닐 때, 어떤 구슬이든 결승 직전 하단 구간에 들어오면 지정 구슬의 충격 스킬을 1회 발동한다.
+    if (this._mapId === 'builtin:0' && this._testWinnerMarbleId !== null && !this._testLastChanceSkillUsed) {
+      const designated = this._marbles.find((marble) => marble.id === this._testWinnerMarbleId);
+      const bottomReached = this._marbles.some((marble) => marble.y >= stage.goalY - 5);
+      if (designated && bottomReached) {
+        const designatedAlreadyWon = this._winners.length > 0 && this._winners[0].id === designated.id;
+        const designatedIsFirst = this._winners.length > 0
+          ? designatedAlreadyWon
+          : [...this._marbles].sort((a, b) =>
+              ProgressMap.for(stage).distanceAt(a.x, a.y) - ProgressMap.for(stage).distanceAt(b.x, b.y)
+            )[0]?.id === designated.id;
+
+        if (!designatedIsFirst) {
+          this._effects.push(new SkillEffect(designated.x, designated.y));
+          this.physics.impact(designated.id);
+          this._testLastChanceSkillUsed = true;
+        }
       }
     }
 
