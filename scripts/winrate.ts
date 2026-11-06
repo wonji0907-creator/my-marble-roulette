@@ -137,7 +137,7 @@ async function main() {
   const n = Math.max(2, Number(process.argv[3] ?? 5));
   const mapIndex = 0; // Wheel of fortune 전용 실험
   const policies: Policy[] = [
-    { label: '첫 입력 구슬 가속 + 나머지 전원 감속', mode: 'combined', gap: 0.25, targetFactor: 1.2, rivalFactor: 0.95, cooldown: 0.25, maxAssists: 32, startImpulse: 0 },
+    { label: '첫 입력 구슬 가속 + 나머지 전원 감속', mode: 'combined', gap: 0.25, targetFactor: 1.25, rivalFactor: 0.95, cooldown: 0.25, maxAssists: 32, startImpulse: 0 },
   ];
 
   console.log(`맵: ${stages[mapIndex].title} / 참가: ${n} / 조건별 반복: ${trials}`);
