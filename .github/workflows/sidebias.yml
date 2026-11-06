@@ -1,0 +1,20 @@
+name: Final obstacle side-bias diagnostic
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/sidebias.ts'
+      - '.github/workflows/sidebias.yml'
+jobs:
+  sidebias:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - name: Compare final obstacle side-bias conditions
+        run: npx tsx scripts/sidebias.ts 500 5
