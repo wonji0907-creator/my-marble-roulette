@@ -263,16 +263,14 @@ export class Roulette extends EventTarget {
     }
 
     // Wheel of fortune: 지정 구슬이 1등이 아닐 때, 어떤 구슬이든 결승 직전 하단 구간에 들어오면 지정 구슬의 충격 스킬을 1회 발동한다.
-    if (this._mapId === 'builtin:0' && this._testWinnerMarbleId !== null && !this._testLastChanceSkillUsed) {
+    if (this._testWinnerMarbleId !== null && !this._testLastChanceSkillUsed) {
       const designated = this._marbles.find((marble) => marble.id === this._testWinnerMarbleId);
       const bottomReached = this._marbles.some((marble) => marble.y >= this._stage!.goalY - 5);
       if (designated && bottomReached) {
-        const designatedAlreadyWon = this._winners.length > 0 && this._winners[0].id === designated.id;
+        // 결승 통과자가 있으면 첫 통과자를, 아니면 현재 정렬된 선두를 1등으로 본다.
         const designatedIsFirst = this._winners.length > 0
-          ? designatedAlreadyWon
-          : [...this._marbles].sort((a, b) =>
-              ProgressMap.for(this._stage!).distanceAt(a.x, a.y) - ProgressMap.for(this._stage!).distanceAt(b.x, b.y)
-            )[0]?.id === designated.id;
+          ? this._winners[0].id === designated.id
+          : this._marbles[0]?.id === designated.id;
 
         if (!designatedIsFirst) {
           this._effects.push(new SkillEffect(designated.x, designated.y));
@@ -547,12 +545,12 @@ export class Roulette extends EventTarget {
     this.physics.start();
     this._marbles.forEach((marble) => (marble.isActive = true));
 
+    this._testLastChanceSkillUsed = false;
     // 출발 순간의 추가 가속은 제거한다. 지정 구슬도 다른 구슬과 같은 조건에서 출발한다.
     if (this._mapId === 'builtin:0' && this._testWinnerMarbleId !== null) {
       this._testChaseElapsed = 0;
       this._testChaseLastAssist = -Infinity;
       this._testChaseAssists = 0;
-      this._testLastChanceSkillUsed = false;
       this._testSlowdownAssists.clear();
     }
   }
