@@ -33,7 +33,7 @@ class NodePhysics extends Box2dPhysics {
 }
 
 type Side = 'left' | 'right' | 'center' | 'no-contact';
-type MarbleResult = { side: Side; first: boolean; contactX: number | null; phase: string | null; preVx: number | null; preVy: number | null };
+type MarbleResult = { side: Side; first: boolean; contactX: number | null; phase: string | null };
 
 async function race(seed: number, n: number): Promise<MarbleResult[]> {
   seedRandom(seed);
@@ -62,20 +62,12 @@ async function race(seed: number, n: number): Promise<MarbleResult[]> {
   const sides: (Side | null)[] = Array(n).fill(null);
   const contactXs: (number | null)[] = Array(n).fill(null);
   const phases: (string | null)[] = Array(n).fill(null);
-  const phases: (string | null)[] = Array(n).fill(null);
-  const preVxs: (number | null)[] = Array(n).fill(null);
-  const preVys: (number | null)[] = Array(n).fill(null);
   const alive = new Set(Array.from({ length: n }, (_, i) => i));
   const finishOrder: number[] = [];
   const removals: { id: number; time: number }[] = [];
   let elapsed = 0;
 
   while (alive.size && elapsed < MAX_SECONDS) {
-    const before = new Map<number, { vx: number; vy: number }>();
-    for (const id of alive) {
-      const body = internal.marbleMap[id];
-      if (body) { const v = body.GetLinearVelocity(); before.set(id, { vx: v.x, vy: v.y }); }
-    }
     physics.step(STEP);
     elapsed += STEP;
 
@@ -136,14 +128,12 @@ async function main() {
   };
   let completed = 0;
   const resultsByPhase: Record<string, { marbles: number; wins: number }> = Object.fromEntries(['0-90°', '90-180°', '180-270°', '270-360°'].map(p => [p, { marbles: 0, wins: 0 }]));
-  const resultsByPhase: Record<string, { marbles: number; wins: number }> = Object.fromEntries(['0-90°', '90-180°', '180-270°', '270-360°'].map(p => [p, { marbles: 0, wins: 0 }]));
   for (let i = 0; i < trials; i++) {
     const results = await race(20261106 + i, n);
     if (results.some(r => r.first)) completed++;
     for (const r of results) {
       totals[r.side].marbles++;
       if (r.first) totals[r.side].wins++;
-      if (r.phase) { resultsByPhase[r.phase].marbles++; if (r.first) resultsByPhase[r.phase].wins++; }
       if (r.phase) { resultsByPhase[r.phase].marbles++; if (r.first) resultsByPhase[r.phase].wins++; }
     }
   }
