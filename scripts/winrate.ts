@@ -41,7 +41,7 @@ type Outcome = {
   seconds: number;
 };
 
-async function race(seed: number, n: number): Promise<Outcome> {
+async function race(seed: number, n: number, skillEnabled: boolean): Promise<Outcome> {
   seedRandom(seed);
   const stage = stages[0];
   const progress = ProgressMap.for(stage);
@@ -104,7 +104,7 @@ async function race(seed: number, n: number): Promise<Outcome> {
 
     // 게임 코드와 동일: 지정 구슬이 1등이 아니고, 어느 구슬이든 goalY - 5에
     // 도달하면 지정 구슬에 Impact를 단 한 번 적용한다.
-    if (!skillTriggered && alive.has(target)) {
+    if (skillEnabled && !skillTriggered && alive.has(target)) {
       const positions = [...alive].map((id) => {
         const p = physics.getMarblePosition(id);
         return { id, x: p.x, y: p.y, d: progress.distanceAt(p.x, p.y) };
@@ -168,36 +168,55 @@ async function race(seed: number, n: number): Promise<Outcome> {
 async function main() {
   const trials = Math.max(1, Number(process.argv[2] ?? 500));
   const n = Math.max(2, Number(process.argv[3] ?? 5));
-  let firstCount = 0;
-  let secondCount = 0;
-  let skillCount = 0;
-  let assistTotal = 0;
-  let slowdownTotal = 0;
-  let timeTotal = 0;
-  let completed = 0;
+  const variants = [
+    { label: 'A 스킬 OFF', skillEnabled: false },
+    { label: 'B 스킬 ON', skillEnabled: true },
+  ];
+  const totals = variants.map(() => ({
+    first: 0, second: 0, topTwo: 0, skill: 0,
+    assists: 0, slowdowns: 0, seconds: 0,
+  }));
+  let pairedFirstWins = 0;
+  let pairedSecondWins = 0;
+  let pairedTopTwoWins = 0;
 
   for (let i = 0; i < trials; i++) {
-    const result = await race(20261106 + i, n);
-    if (result.first || result.second) completed++;
-    if (result.first) firstCount++;
-    if (result.second) secondCount++;
-    if (result.skillTriggered) skillCount++;
-    assistTotal += result.assists;
-    slowdownTotal += result.slowdowns;
-    timeTotal += result.seconds;
+    const seed = 20261106 + i;
+    const a = await race(seed, n, variants[0].skillEnabled);
+    const b = await race(seed, n, variants[1].skillEnabled);
+    const results = [a, b];
+
+    for (let j = 0; j < results.length; j++) {
+      const result = results[j];
+      const total = totals[j];
+      if (result.first) total.first++;
+      if (result.second) total.second++;
+      if (result.first || result.second) total.topTwo++;
+      if (result.skillTriggered) total.skill++;
+      total.assists += result.assists;
+      total.slowdowns += result.slowdowns;
+      total.seconds += result.seconds;
+    }
+
+    if (!a.first && b.first) pairedFirstWins++;
+    if (!a.second && b.second) pairedSecondWins++;
+    if (!(a.first || a.second) && (b.first || b.second)) pairedTopTwoWins++;
   }
 
-  console.log(`맵: ${stages[0].title} / 참가: ${n} / 반복: ${trials} / 완주 레이스: ${completed}`);
-  console.log('| 항목 | 결과 |');
-  console.log('|---|---:|');
-  console.log(`| 지정 구슬 1등 | ${firstCount}/${trials} (${(firstCount / trials * 100).toFixed(1)}%) |`);
-  console.log(`| 지정 구슬 2등 | ${secondCount}/${trials} (${(secondCount / trials * 100).toFixed(1)}%) |`);
-  console.log(`| 하단 도달 스킬 발동 | ${skillCount}/${trials} (${(skillCount / trials * 100).toFixed(1)}%) |`);
-  console.log(`| 평균 추격 가속 횟수 | ${(assistTotal / trials).toFixed(1)} |`);
-  console.log(`| 평균 상대 감속 횟수 | ${(slowdownTotal / trials).toFixed(1)} |`);
-  console.log(`| 평균 완주 시간 | ${(timeTotal / trials).toFixed(1)}s |`);
+  console.log(`맵: ${stages[0].title} / 참가: ${n} / 동일 시드: ${trials}개 (A/B 각 ${trials}회)`);
+  console.log('| 항목 | A 스킬 OFF | B 스킬 ON | 차이(B-A) |');
+  console.log('|---|---:|---:|---:|');
+  const pct = (v: number) => (v / trials * 100).toFixed(1) + '%';
+  const diffPct = (a: number, b: number) => ((b - a) / trials * 100).toFixed(1) + '%p';
+  console.log(`| 지정 구슬 1등 | ${totals[0].first} (${pct(totals[0].first)}) | ${totals[1].first} (${pct(totals[1].first)}) | ${diffPct(totals[0].first, totals[1].first)} |`);
+  console.log(`| 지정 구슬 2등 | ${totals[0].second} (${pct(totals[0].second)}) | ${totals[1].second} (${pct(totals[1].second)}) | ${diffPct(totals[0].second, totals[1].second)} |`);
+  console.log(`| 1·2등 합계 | ${totals[0].topTwo} (${pct(totals[0].topTwo)}) | ${totals[1].topTwo} (${pct(totals[1].topTwo)}) | ${diffPct(totals[0].topTwo, totals[1].topTwo)} |`);
+  console.log(`| 스킬 발동 | ${totals[0].skill} (${pct(totals[0].skill)}) | ${totals[1].skill} (${pct(totals[1].skill)}) | - |`);
+  console.log(`| 평균 추격 가속 | ${(totals[0].assists / trials).toFixed(1)} | ${(totals[1].assists / trials).toFixed(1)} | - |`);
+  console.log(`| 평균 상대 감속 | ${(totals[0].slowdowns / trials).toFixed(1)} | ${(totals[1].slowdowns / trials).toFixed(1)} | - |`);
+  console.log(`| 평균 레이스 시간 | ${(totals[0].seconds / trials).toFixed(1)}s | ${(totals[1].seconds / trials).toFixed(1)}s | - |`);
+  console.log(`동일 시드에서 OFF 실패 → ON 성공: 1등 ${pairedFirstWins}회 / 2등 ${pairedSecondWins}회 / 1·2등 진입 ${pairedTopTwoWins}회`);
 }
-
 main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
