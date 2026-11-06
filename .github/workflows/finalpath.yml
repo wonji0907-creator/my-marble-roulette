@@ -1,0 +1,20 @@
+name: Final obstacle approach diagnostic
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/finalpath.ts'
+      - '.github/workflows/finalpath.yml'
+jobs:
+  finalpath:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - name: Measure final obstacle approach and finish outcomes
+        run: npx tsx scripts/finalpath.ts 500 5
