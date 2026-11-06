@@ -181,7 +181,7 @@ async function main() {
   let pairedTopTwoWins = 0;
 
   for (let i = 0; i < trials; i++) {
-    const seed = 20261106 + i;
+    const seed = 20261606 + i;
     const a = await race(seed, n, variants[0].skillEnabled);
     const b = await race(seed, n, variants[1].skillEnabled);
     const results = [a, b];
